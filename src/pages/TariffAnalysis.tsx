@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { format, addDays, subDays, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -46,6 +45,9 @@ import {
 } from "recharts";
 import { fetchCategories, fetchPartners, fetchDailyBaseRates, Category, Partner } from "@/services/supabaseService";
 import { toast } from "sonner";
+import { fetchPartners, fetchPlans } from "@/services/partnerService";
+import { fetchDailyBaseRates } from "@/services/rateService";
+import { Plan, Partner, DailyRate } from "@/services/types";
 
 const DAYS_TO_SHOW = 30;
 

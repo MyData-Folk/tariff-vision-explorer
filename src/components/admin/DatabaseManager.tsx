@@ -196,6 +196,24 @@ const DatabaseManager: React.FC = () => {
     }
   };
 
+  // Fix the string argument type issue (around line 205)
+  // Using a type assertion to resolve the TS2345 error
+  const handleValueChange = (
+    tableName: string,
+    rowIndex: number,
+    columnName: string,
+    value: string | number | boolean | null
+  ) => {
+    if (!tableData[rowIndex]) return;
+    
+    const newData = [...tableData];
+    newData[rowIndex] = {
+      ...newData[rowIndex],
+      [columnName]: value
+    };
+    setTableData(newData);
+  };
+
   // Exécuter une requête SQL personnalisée
   const handleExecuteQuery = async () => {
     if (!sqlQuery.trim()) return;
@@ -348,15 +366,7 @@ const DatabaseManager: React.FC = () => {
                                   <Input
                                     value={row[col.name] || ''}
                                     onChange={(e) => {
-                                      const newData = [...tableData];
-                                      const rowIndex = newData.findIndex(r => r.id === row.id);
-                                      if (rowIndex !== -1) {
-                                        newData[rowIndex] = {
-                                          ...newData[rowIndex],
-                                          [col.name]: e.target.value
-                                        };
-                                        setTableData(newData);
-                                      }
+                                      handleValueChange(selectedTable, index, col.name, e.target.value);
                                     }}
                                     type={col.type === 'number' ? 'number' : 'text'}
                                     className="h-8 w-full"

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { format, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -44,7 +45,9 @@ import {
 } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
-import { fetchPlans, fetchPartners, fetchDailyBaseRates, Plan, Partner } from "@/services/supabaseService";
+import { fetchPlans, fetchPartners } from "@/services/partnerService";
+import { fetchDailyBaseRates } from "@/services/rateService";
+import { Plan, Partner, DailyRate } from "@/services/types";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -340,6 +343,13 @@ const TariffComparison = () => {
   };
   
   const differencesData = calculateDifferences();
+
+  // Calculate an array of selected partner display names for use in the charts and tables
+  const getSelectedPlanNames = () => {
+    return selectedPartners
+      .filter(p => p.partnerId && p.planName)
+      .map(p => `${p.partnerName} - ${p.planName}`);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -641,7 +651,7 @@ const TariffComparison = () => {
                             <div className="h-[250px]">
                               <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
-                                  data={selectedPlans.map((plan) => ({
+                                  data={getSelectedPlanNames().map((plan) => ({
                                     plan,
                                     avg: Math.round(chartData.reduce((sum, day) => sum + Number(day[plan]), 0) / chartData.length)
                                   }))}
@@ -652,7 +662,7 @@ const TariffComparison = () => {
                                   <YAxis />
                                   <Tooltip formatter={(value) => [`${value} €`, "Tarif moyen"]} />
                                   <Bar dataKey="avg">
-                                    {selectedPlans.map((plan, index) => (
+                                    {getSelectedPlanNames().map((plan, index) => (
                                       <Cell 
                                         key={plan} 
                                         fill={["#1E40AF", "#10B981", "#8B5CF6", "#F59E0B", "#6B7280"][index % 5]} 
@@ -671,7 +681,7 @@ const TariffComparison = () => {
                           </CardHeader>
                           <CardContent className="space-y-4">
                             <p>
-                              Sur la période analysée, le plan <strong>{selectedPlans[0]}</strong> a servi
+                              Sur la période analysée, le plan <strong>{selectedPartners[0].partnerName} - {selectedPartners[0].planName}</strong> a servi
                               de référence. Les observations suivantes ont été relevées:
                             </p>
                             <ul className="list-disc pl-5 space-y-2">
@@ -685,7 +695,7 @@ const TariffComparison = () => {
                                 </li>
                               ))}
                             </ul>
-                            {selectedPlans.length > 2 && (
+                            {selectedPartners.length > 2 && (
                               <p className="mt-4 text-sm text-muted-foreground">
                                 Note: Les comparaisons sont effectuées par rapport au premier plan sélectionné.
                               </p>
@@ -714,7 +724,7 @@ const TariffComparison = () => {
                       <thead>
                         <tr>
                           <th className="border px-4 py-2 text-left">Date</th>
-                          {availablePlans.map((plan) => (
+                          {getSelectedPlanNames().map((plan) => (
                             <th key={plan} className="border px-4 py-2 text-left">{plan}</th>
                           ))}
                         </tr>
@@ -725,7 +735,7 @@ const TariffComparison = () => {
                             <td className="border px-4 py-2">
                               {format(new Date(row.date), "eeee d MMM", { locale: fr })}
                             </td>
-                            {availablePlans.map((plan) => (
+                            {getSelectedPlanNames().map((plan) => (
                               <td key={plan} className="border px-4 py-2 font-medium">
                                 {row[plan] ? `${row[plan]} €` : "-"}
                               </td>
