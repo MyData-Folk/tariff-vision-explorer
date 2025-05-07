@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { format, addDays, subDays, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -41,12 +41,13 @@ import {
   Line,
   Legend,
   BarChart,
-  Bar
+  Bar,
+  Cell,
 } from "recharts";
-import { mockCategories, mockPartners, mockRatePlans, generateMockBaseRates } from "@/lib/mockData";
+import { fetchCategories, fetchPartners, fetchDailyBaseRates, Category, Partner } from "@/services/supabaseService";
+import { toast } from "sonner";
 
 const DAYS_TO_SHOW = 30;
-const baseRates = generateMockBaseRates();
 
 const TariffAnalysis = () => {
   const [analysisDate, setAnalysisDate] = useState<Date | undefined>(new Date());
@@ -54,52 +55,122 @@ const TariffAnalysis = () => {
   const [selectedPartner, setSelectedPartner] = useState<string>("1");
   const [selectedMetric, setSelectedMetric] = useState<string>("trend");
   const [chartView, setChartView] = useState<string>("area");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [trendData, setTrendData] = useState<any[]>([]);
+  const [seasonalData, setSeasonalData] = useState<any[]>([]);
+  const [comparisonData, setComparisonData] = useState<any[]>([]);
   
-  const generateTrendData = () => {
-    if (!analysisDate) return [];
+  // Charger les catégories et partenaires au chargement
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const [fetchedCategories, fetchedPartners] = await Promise.all([
+          fetchCategories(),
+          fetchPartners()
+        ]);
+        
+        setCategories(fetchedCategories);
+        setPartners(fetchedPartners);
+        
+        // Utiliser le premier élément comme valeur par défaut s'il existe
+        if (fetchedCategories.length > 0) {
+          setSelectedCategory(fetchedCategories[0].id);
+        }
+        
+        if (fetchedPartners.length > 0) {
+          setSelectedPartner(fetchedPartners[0].id);
+        }
+        
+        // Générer les données initiales
+        generateTrendData();
+        generateSeasonalData();
+        generateComparisonData();
+        
+      } catch (error) {
+        console.error("Erreur lors du chargement des données initiales:", error);
+        toast.error("Impossible de charger les données initiales");
+      }
+    };
     
-    const startDate = subDays(analysisDate, DAYS_TO_SHOW / 2);
-    const data = [];
-    
-    for (let i = 0; i < DAYS_TO_SHOW; i++) {
-      const currentDate = addDays(startDate, i);
-      const dateStr = format(currentDate, "yyyy-MM-dd");
+    loadInitialData();
+  }, []);
+  
+  // Mettre à jour les données lorsque les paramètres changent
+  useEffect(() => {
+    generateTrendData();
+    generateComparisonData();
+  }, [selectedCategory, selectedPartner, analysisDate]);
+  
+  // Mettre à jour les données saisonnières lorsque la catégorie change
+  useEffect(() => {
+    generateSeasonalData();
+  }, [selectedCategory]);
+  
+  const generateTrendData = async () => {
+    setIsLoading(true);
+    try {
+      if (!analysisDate) return;
       
-      // Find rates for this date and category
-      const dayRates = baseRates.filter(
-        rate => 
-          rate.categoryId === selectedCategory && 
-          isSameDay(new Date(rate.date), currentDate)
+      const startDate = subDays(analysisDate, DAYS_TO_SHOW / 2);
+      const endDate = addDays(analysisDate, DAYS_TO_SHOW / 2);
+      
+      const dailyRates = await fetchDailyBaseRates(
+        format(startDate, "yyyy-MM-dd"),
+        format(endDate, "yyyy-MM-dd")
       );
       
-      if (dayRates.length > 0) {
+      // Créer une map des taux par date
+      const ratesMap = new Map();
+      dailyRates.forEach(rate => {
+        ratesMap.set(rate.date, {
+          ota_rate: rate.ota_rate,
+          travco_rate: rate.travco_rate
+        });
+      });
+      
+      const data = [];
+      let currentDate = new Date(startDate);
+      
+      while (currentDate <= endDate) {
+        const dateStr = format(currentDate, "yyyy-MM-dd");
+        const rates = ratesMap.get(dateStr);
+        
         const entry = {
           date: dateStr,
-          baseRate: dayRates[0].value,
+          baseRate: rates ? rates.ota_rate : generateEstimatedRate(currentDate),
           isToday: isSameDay(currentDate, new Date()),
           isSelectedDate: isSameDay(currentDate, analysisDate)
         };
         
-        // Add rates for each plan of the selected partner
-        const partnerPlans = mockRatePlans.filter(
-          plan => plan.partnerId === selectedPartner
-        );
-        
-        partnerPlans.forEach(plan => {
-          entry[plan.name] = Math.round(dayRates[0].value * 
-            (plan.name === 'Flexible' ? 1.15 : 
-             plan.name === 'Non-Remboursable' ? 0.9 : 1)
-          );
-        });
+        // Ajouter les taux pour différents plans
+        entry['Standard'] = Math.round(entry.baseRate * 1);
+        entry['Flexible'] = Math.round(entry.baseRate * 1.15);
+        entry['Non-Remboursable'] = Math.round(entry.baseRate * 0.9);
         
         data.push(entry);
+        currentDate = addDays(currentDate, 1);
       }
+      
+      setTrendData(data);
+      
+    } catch (error) {
+      console.error("Erreur lors de la génération des données de tendance:", error);
+      toast.error("Erreur lors du chargement des données");
+    } finally {
+      setIsLoading(false);
     }
-    
-    return data;
   };
   
-  const trendData = generateTrendData();
+  const generateEstimatedRate = (date: Date) => {
+    // Estimer un tarif basé sur le jour de la semaine
+    const isWeekend = [0, 6].includes(date.getDay());
+    const baseRateValue = selectedCategory === '1' ? 130 :
+                      selectedCategory === '2' ? 180 : 
+                      selectedCategory === '3' ? 100 : 150;
+    return isWeekend ? baseRateValue * 1.2 : baseRateValue;
+  };
   
   const generateSeasonalData = () => {
     const data = [];
@@ -146,54 +217,36 @@ const TariffAnalysis = () => {
       data.push(entry);
     }
     
-    return data;
+    setSeasonalData(data);
   };
-  
-  const seasonalData = generateSeasonalData();
   
   const generateComparisonData = () => {
     const partnerData = [];
     
     // Compare rates across different partners for the selected date
-    mockPartners.forEach(partner => {
-      const partnerPlans = mockRatePlans.filter(plan => plan.partnerId === partner.id);
+    partners.forEach(partner => {
+      // Create mock plans for demo purposes - to be replaced with real data
+      const partnerPlans = [
+        { name: 'Standard', adjustmentFactor: 1 },
+        { name: 'Flexible', adjustmentFactor: 1.15 },
+        { name: 'Non-Remboursable', adjustmentFactor: 0.9 }
+      ];
       
-      if (partnerPlans.length > 0) {
-        const categoryRate = baseRates.find(
-          rate => rate.categoryId === selectedCategory && 
-                  (analysisDate && isSameDay(new Date(rate.date), analysisDate))
-        );
-        
-        if (categoryRate) {
-          const baseValue = categoryRate.value;
-          
-          partnerPlans.forEach(plan => {
-            let adjustmentFactor = 1;
+      // Base value - in real app, this would come from the database
+      const baseValue = 150;
       
-            // Different adjustment factors based on plan type
-            if (plan.name === 'Flexible') {
-              adjustmentFactor = 1.15;
-            } else if (plan.name === 'Non-Remboursable') {
-              adjustmentFactor = 0.9;
-            } else if (plan.name === 'Direct') {
-              adjustmentFactor = 0.95;
-            }
-            
-            partnerData.push({
-              partner: partner.name,
-              plan: plan.name,
-              rate: Math.round(baseValue * adjustmentFactor),
-              isSelected: partner.id === selectedPartner
-            });
-          });
-        }
-      }
+      partnerPlans.forEach(plan => {
+        partnerData.push({
+          partner: partner.name,
+          plan: plan.name,
+          rate: Math.round(baseValue * plan.adjustmentFactor),
+          isSelected: partner.id === selectedPartner
+        });
+      });
     });
     
-    return partnerData;
+    setComparisonData(partnerData);
   };
-  
-  const comparisonData = generateComparisonData();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -248,7 +301,7 @@ const TariffAnalysis = () => {
                 <SelectContent>
                   <SelectGroup>
                     <SelectLabel>Catégories</SelectLabel>
-                    {mockCategories.map((category) => (
+                    {categories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         {category.name}
                       </SelectItem>
@@ -270,7 +323,7 @@ const TariffAnalysis = () => {
                 <SelectContent>
                   <SelectGroup>
                     <SelectLabel>Partenaires</SelectLabel>
-                    {mockPartners.map((partner) => (
+                    {partners.map((partner) => (
                       <SelectItem key={partner.id} value={partner.id}>
                         {partner.name}
                       </SelectItem>
@@ -788,37 +841,41 @@ const TariffAnalysis = () => {
             {selectedMetric === "trend" && (
               <div className="space-y-4">
                 <p>
-                  L'analyse des tendances sur les 30 derniers jours pour la catégorie <span className="font-medium">{mockCategories.find(c => c.id === selectedCategory)?.name}</span> montre:
+                  L'analyse des tendances sur les 30 derniers jours pour la catégorie <span className="font-medium">{categories.find(c => c.id === selectedCategory)?.name || ""}</span> montre:
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="border rounded-lg p-4 bg-muted/30">
                     <div className="text-sm text-muted-foreground">Tarif le plus bas</div>
                     <div className="mt-1 text-xl font-bold">
-                      {Math.min(...trendData.map(d => d.baseRate))} €
+                      {trendData.length > 0 ? Math.min(...trendData.map(d => d.baseRate)) : "-"} €
                     </div>
                     <div className="mt-1 text-xs">
-                      le {format(
-                        new Date(trendData.reduce((prev, curr) => 
-                          prev.baseRate < curr.baseRate ? prev : curr
-                        ).date),
-                        "d MMMM",
-                        { locale: fr }
-                      )}
+                      {trendData.length > 0 ? (
+                        `le ${format(
+                          new Date(trendData.reduce((prev, curr) => 
+                            prev.baseRate < curr.baseRate ? prev : curr
+                          ).date),
+                          "d MMMM",
+                          { locale: fr }
+                        )}`
+                      ) : ""}
                     </div>
                   </div>
                   <div className="border rounded-lg p-4 bg-muted/30">
                     <div className="text-sm text-muted-foreground">Tarif le plus élevé</div>
                     <div className="mt-1 text-xl font-bold">
-                      {Math.max(...trendData.map(d => d.baseRate))} €
+                      {trendData.length > 0 ? Math.max(...trendData.map(d => d.baseRate)) : "-"} €
                     </div>
                     <div className="mt-1 text-xs">
-                      le {format(
-                        new Date(trendData.reduce((prev, curr) => 
-                          prev.baseRate > curr.baseRate ? prev : curr
-                        ).date),
-                        "d MMMM",
-                        { locale: fr }
-                      )}
+                      {trendData.length > 0 ? (
+                        `le ${format(
+                          new Date(trendData.reduce((prev, curr) => 
+                            prev.baseRate > curr.baseRate ? prev : curr
+                          ).date),
+                          "d MMMM",
+                          { locale: fr }
+                        )}`
+                      ) : ""}
                     </div>
                   </div>
                 </div>
@@ -839,14 +896,14 @@ const TariffAnalysis = () => {
             {selectedMetric === "seasonal" && (
               <div className="space-y-4">
                 <p>
-                  L'analyse saisonnière pour la catégorie <span className="font-medium">{mockCategories.find(c => c.id === selectedCategory)?.name}</span> révèle:
+                  L'analyse saisonnière pour la catégorie <span className="font-medium">{categories.find(c => c.id === selectedCategory)?.name || ""}</span> révèle:
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
                   <div className="border rounded-lg p-3 bg-orange-50">
                     <div className="text-sm font-medium text-orange-700">Haute saison</div>
                     <div className="mt-1 text-lg font-bold">
                       {Math.round(seasonalData.filter(d => d.season === 'Haute').reduce((acc, curr) => acc + curr.baseRate, 0) / 
-                      seasonalData.filter(d => d.season === 'Haute').length)} €
+                      (seasonalData.filter(d => d.season === 'Haute').length || 1))} €
                     </div>
                     <div className="mt-1 text-xs">juin - août</div>
                   </div>
@@ -854,7 +911,7 @@ const TariffAnalysis = () => {
                     <div className="text-sm font-medium text-blue-700">Moyenne saison</div>
                     <div className="mt-1 text-lg font-bold">
                       {Math.round(seasonalData.filter(d => d.season === 'Moyenne').reduce((acc, curr) => acc + curr.baseRate, 0) / 
-                      seasonalData.filter(d => d.season === 'Moyenne').length)} €
+                      (seasonalData.filter(d => d.season === 'Moyenne').length || 1))} €
                     </div>
                     <div className="mt-1 text-xs">avr-mai, sept-oct</div>
                   </div>
@@ -862,7 +919,7 @@ const TariffAnalysis = () => {
                     <div className="text-sm font-medium text-green-700">Basse saison</div>
                     <div className="mt-1 text-lg font-bold">
                       {Math.round(seasonalData.filter(d => d.season === 'Basse').reduce((acc, curr) => acc + curr.baseRate, 0) / 
-                      seasonalData.filter(d => d.season === 'Basse').length)} €
+                      (seasonalData.filter(d => d.season === 'Basse').length || 1))} €
                     </div>
                     <div className="mt-1 text-xs">novembre - mars</div>
                   </div>
@@ -884,7 +941,7 @@ const TariffAnalysis = () => {
             {selectedMetric === "comparison" && (
               <div className="space-y-4">
                 <p>
-                  La comparaison entre partenaires pour la catégorie <span className="font-medium">{mockCategories.find(c => c.id === selectedCategory)?.name}</span> montre:
+                  La comparaison entre partenaires pour la catégorie <span className="font-medium">{categories.find(c => c.id === selectedCategory)?.name || ""}</span> montre:
                 </p>
                 
                 <div className="overflow-x-auto">
@@ -897,7 +954,7 @@ const TariffAnalysis = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {mockPartners.map(partner => {
+                      {partners.map(partner => {
                         const partnerRates = comparisonData
                           .filter(item => item.partner === partner.name)
                           .map(item => item.rate);
@@ -909,12 +966,12 @@ const TariffAnalysis = () => {
                         );
                         
                         // Calculate global average
-                        const globalAvg = Math.round(
+                        const globalAvg = comparisonData.length > 0 ? Math.round(
                           comparisonData.reduce((acc, item) => acc + item.rate, 0) / comparisonData.length
-                        );
+                        ) : 0;
                         
                         const diff = avgRate - globalAvg;
-                        const percentage = Math.round((diff / globalAvg) * 100);
+                        const percentage = globalAvg > 0 ? Math.round((diff / globalAvg) * 100) : 0;
                         
                         return (
                           <tr key={partner.id} className={
@@ -944,11 +1001,11 @@ const TariffAnalysis = () => {
                   <ul className="list-disc pl-5 mt-2 space-y-1 text-sm">
                     <li>
                       {comparisonData.some(item => 
-                        item.partner === mockPartners.find(p => p.id === selectedPartner)?.name && 
+                        item.partner === partners.find(p => p.id === selectedPartner)?.name && 
                         item.rate > (comparisonData.reduce((acc, item) => acc + item.rate, 0) / comparisonData.length)
                       ) 
-                      ? `Les tarifs de ${mockPartners.find(p => p.id === selectedPartner)?.name} sont supérieurs à la moyenne du marché`
-                      : `Les tarifs de ${mockPartners.find(p => p.id === selectedPartner)?.name} sont compétitifs sur le marché`}
+                      ? `Les tarifs de ${partners.find(p => p.id === selectedPartner)?.name || ""} sont supérieurs à la moyenne du marché`
+                      : `Les tarifs de ${partners.find(p => p.id === selectedPartner)?.name || ""} sont compétitifs sur le marché`}
                     </li>
                     <li>Les écarts les plus importants sont observés sur les plans flexibles</li>
                     <li>Considérez d'aligner les tarifs non-remboursables entre les partenaires</li>

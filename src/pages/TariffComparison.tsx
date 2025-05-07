@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { format, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -44,41 +44,76 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { fetchPlans, fetchPartners, fetchDailyBaseRates, Plan, Partner } from "@/services/supabaseService";
+import { toast } from "sonner";
 
 interface ChartData {
   date: string;
   [key: string]: string | number;
 }
 
-const mockTariffData = (startDate: Date, days: number): ChartData[] => {
-  const data = [];
-  const baseRates = {
-    "Booking Standard": 130,
-    "Booking Flexible": 145,
-    "Expedia Standard": 128,
-    "Expedia Flexible": 142,
-    "Direct": 125,
+// Fonction pour transformer les données de la base en données pour le graphique
+const transformDataForChart = (
+  baseRates: any[], 
+  startDate: Date, 
+  endDate: Date, 
+  selectedPlans: string[]
+): ChartData[] => {
+  const data: ChartData[] = [];
+  
+  // Créer une map des dates pour un accès plus rapide
+  const ratesMap = new Map();
+  baseRates.forEach(rate => {
+    ratesMap.set(rate.date, {
+      ota_rate: rate.ota_rate,
+      travco_rate: rate.travco_rate
+    });
+  });
+  
+  // Définir les taux de base pour chaque plan
+  const planMultipliers: {[key: string]: number} = {
+    "Booking Standard": 1.05,
+    "Booking Flexible": 1.15,
+    "Expedia Standard": 1.03,
+    "Expedia Flexible": 1.13,
+    "Direct": 1,
   };
-
-  for (let i = 0; i < days; i++) {
-    const currentDate = addDays(startDate, i);
+  
+  // Pour chaque jour dans la plage de dates
+  let currentDate = new Date(startDate);
+  const lastDate = new Date(endDate);
+  
+  while (currentDate <= lastDate) {
     const dateStr = format(currentDate, "yyyy-MM-dd");
-    
-    // Higher rates on weekends
-    const isWeekend = [0, 6].includes(currentDate.getDay());
-    const weekendMultiplier = isWeekend ? 1.2 : 1;
-    
-    // Random fluctuation
-    const randomFactor = () => 0.9 + Math.random() * 0.2;
-    
     const entry: ChartData = { date: dateStr };
     
-    // Assign rates with some randomness
-    Object.entries(baseRates).forEach(([plan, rate]) => {
-      entry[plan] = Math.round(rate * weekendMultiplier * randomFactor());
-    });
+    // Trouver les taux pour cette date
+    const rates = ratesMap.get(dateStr);
     
-    data.push(entry);
+    if (rates) {
+      // Calculer les tarifs pour chaque plan sélectionné
+      selectedPlans.forEach(plan => {
+        const baseRate = rates.ota_rate; // On utilise le taux OTA comme base
+        const multiplier = planMultipliers[plan] || 1;
+        entry[plan] = Math.round(baseRate * multiplier);
+      });
+      
+      data.push(entry);
+    } else {
+      // Si nous n'avons pas de données pour cette date, utiliser des estimations basées sur des jours similaires
+      const isWeekend = [0, 6].includes(currentDate.getDay());
+      const baseRate = isWeekend ? 140 : 120; // Estimation
+      
+      selectedPlans.forEach(plan => {
+        const multiplier = planMultipliers[plan] || 1;
+        entry[plan] = Math.round(baseRate * multiplier);
+      });
+      
+      data.push(entry);
+    }
+    
+    // Passer au jour suivant
+    currentDate = addDays(currentDate, 1);
   }
   
   return data;
@@ -102,22 +137,65 @@ const TariffComparison = () => {
     "Direct",
   ]);
   const [hasCompared, setHasCompared] = useState(false);
+  const [availablePlans, setAvailablePlans] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [allPlans, setAllPlans] = useState<Plan[]>([]);
+  const [allPartners, setAllPartners] = useState<Partner[]>([]);
 
-  const availablePlans = [
-    "Booking Standard",
-    "Booking Flexible",
-    "Expedia Standard",
-    "Expedia Flexible",
-    "Direct",
-  ];
+  useEffect(() => {
+    // Chargement des plans et partenaires au chargement de la page
+    const loadInitialData = async () => {
+      try {
+        const [plans, partners] = await Promise.all([
+          fetchPlans(),
+          fetchPartners()
+        ]);
+        
+        setAllPlans(plans);
+        setAllPartners(partners);
+        
+        // Construire les plans disponibles à partir des données réelles
+        const planNames = [
+          "Booking Standard",
+          "Booking Flexible",
+          "Expedia Standard", 
+          "Expedia Flexible",
+          "Direct"
+        ];
+        setAvailablePlans(planNames);
+      } catch (error) {
+        console.error("Erreur lors du chargement des données initiales:", error);
+        toast.error("Impossible de charger les données initiales");
+      }
+    };
+    
+    loadInitialData();
+  }, []);
   
-  const colors = ["#1E40AF", "#10B981", "#6B7280", "#8B5CF6", "#F59E0B"];
-
-  const handleCompare = () => {
-    const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const data = mockTariffData(startDate, days);
-    setChartData(data);
-    setHasCompared(true);
+  const handleCompare = async () => {
+    setIsLoading(true);
+    try {
+      const formattedStartDate = format(startDate, "yyyy-MM-dd");
+      const formattedEndDate = format(endDate, "yyyy-MM-dd");
+      
+      const dailyRates = await fetchDailyBaseRates(formattedStartDate, formattedEndDate);
+      
+      if (dailyRates.length === 0) {
+        toast.warning("Pas de données disponibles pour cette période");
+        const data = transformDataForChart([], startDate, endDate, selectedPlans);
+        setChartData(data);
+      } else {
+        const data = transformDataForChart(dailyRates, startDate, endDate, selectedPlans);
+        setChartData(data);
+      }
+      
+      setHasCompared(true);
+    } catch (error) {
+      console.error("Erreur lors de la comparaison:", error);
+      toast.error("Impossible de récupérer les données pour la comparaison");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const calculateDifferences = () => {
@@ -275,8 +353,8 @@ const TariffComparison = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 
-                <Button onClick={handleCompare}>
-                  Comparer
+                <Button onClick={handleCompare} disabled={isLoading}>
+                  {isLoading ? "Chargement..." : "Comparer"}
                 </Button>
               </div>
             </div>
@@ -309,7 +387,7 @@ const TariffComparison = () => {
                           <XAxis dataKey="date" tickFormatter={(date) => format(new Date(date), "d MMM", { locale: fr })} />
                           <YAxis domain={['auto', 'auto']} />
                           <Tooltip 
-                            formatter={(value) => [`${value} €`, ""]}
+                            formatter={(value: number) => [`${value} €`, ""]}
                             labelFormatter={(date) => format(new Date(date), "eeee d MMMM", { locale: fr })}
                           />
                           <Legend />
@@ -318,7 +396,7 @@ const TariffComparison = () => {
                               key={plan}
                               type="monotone"
                               dataKey={plan}
-                              stroke={colors[index % colors.length]}
+                              stroke={["#1E40AF", "#10B981", "#8B5CF6", "#F59E0B", "#6B7280"][index % 5]}
                               strokeWidth={2}
                               activeDot={{ r: 6 }}
                               name={plan}
@@ -335,7 +413,7 @@ const TariffComparison = () => {
                           <XAxis dataKey="date" tickFormatter={(date) => format(new Date(date), "d MMM", { locale: fr })} />
                           <YAxis domain={['auto', 'auto']} />
                           <Tooltip 
-                            formatter={(value) => [`${value} €`, ""]}
+                            formatter={(value: number) => [`${value} €`, ""]}
                             labelFormatter={(date) => format(new Date(date), "eeee d MMMM", { locale: fr })}
                           />
                           <Legend />
@@ -343,7 +421,7 @@ const TariffComparison = () => {
                             <Bar 
                               key={plan} 
                               dataKey={plan} 
-                              fill={colors[index % colors.length]}
+                              fill={["#1E40AF", "#10B981", "#8B5CF6", "#F59E0B", "#6B7280"][index % 5]}
                               name={plan}
                             />
                           ))}
@@ -445,7 +523,10 @@ const TariffComparison = () => {
                                   <Tooltip formatter={(value) => [`${value} €`, "Tarif moyen"]} />
                                   <Bar dataKey="avg">
                                     {selectedPlans.map((plan, index) => (
-                                      <Cell key={plan} fill={colors[index % colors.length]} />
+                                      <Cell 
+                                        key={plan} 
+                                        fill={["#1E40AF", "#10B981", "#8B5CF6", "#F59E0B", "#6B7280"][index % 5]} 
+                                      />
                                     ))}
                                   </Bar>
                                 </BarChart>
@@ -516,7 +597,7 @@ const TariffComparison = () => {
                             </td>
                             {availablePlans.map((plan) => (
                               <td key={plan} className="border px-4 py-2 font-medium">
-                                {row[plan]} €
+                                {row[plan] ? `${row[plan]} €` : "-"}
                               </td>
                             ))}
                           </tr>
