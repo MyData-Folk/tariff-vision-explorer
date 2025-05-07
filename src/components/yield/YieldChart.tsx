@@ -1,4 +1,3 @@
-
 import React, { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { parseISODate, formatPrice } from "@/lib/utils";
@@ -6,7 +5,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { CompetitorPrice, OptimizedPrice } from "@/services/supabaseService";
+import { CompetitorPrice, OptimizedPrice } from "@/services";
 
 interface YieldChartProps {
   competitorPrices: CompetitorPrice[];

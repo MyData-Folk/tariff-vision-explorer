@@ -14,7 +14,7 @@ import { formatPrice, downloadCSV } from "@/lib/utils";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { parseISODate } from "@/lib/utils";
-import { CompetitorPrice, OccupancyRate, OptimizedPrice } from "@/services/supabaseService";
+import { CompetitorPrice, OccupancyRate, OptimizedPrice } from "@/services";
 import { AlertTriangle } from "lucide-react";
 
 interface YieldHistoryTableProps {

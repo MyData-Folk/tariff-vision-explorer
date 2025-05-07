@@ -7,7 +7,7 @@ import {
   OccupancyRate,
   CompetitorPrice,
   OptimizedPrice
-} from "@/services/supabaseService";
+} from "@/services";
 import { DateRange } from "react-day-picker";
 import { addMonths, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import YieldCalculator from "@/components/yield/YieldCalculator";

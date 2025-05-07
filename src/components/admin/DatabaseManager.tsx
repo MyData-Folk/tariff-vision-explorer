@@ -1,15 +1,27 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getTables, supabase } from "@/integrations/supabase/client";
+import { getTables } from "@/services/baseService";
+import { supabase } from "@/integrations/supabase/client";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ArrowUpCircle,
+  CheckCircle,
+  Database,
+  Download,
+  Loader2,
+  RefreshCw,
+  Table as TableIcon,
+  UploadCloud,
+  XCircle,
+} from "lucide-react";
+import { toast } from "sonner";
 
 // Type for the structure of a table
 interface TableStructure {

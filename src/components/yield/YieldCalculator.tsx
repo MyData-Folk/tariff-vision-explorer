@@ -10,7 +10,7 @@ import {
   upsertCompetitorPrice, 
   upsertOptimizedPrice, 
   calculateOptimizedPrice 
-} from "@/services/supabaseService";
+} from "@/services/yieldService";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
