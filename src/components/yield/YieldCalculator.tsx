@@ -1,5 +1,5 @@
-// Corrigeons l'erreur dans YieldCalculator.tsx
-import { format, addDays } from "date-fns";
+
+import { format } from "date-fns";
 
 // Fonction pour formater les données pour les graphiques
 export const formatDataForLineChart = (data: any[]) => {

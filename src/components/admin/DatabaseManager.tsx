@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   Card,
@@ -7,12 +8,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ComparisonFormProps } from "./types";
-import { DateRangeSelector } from "./form/DateRangeSelector";
-import { PartnerSelector } from "./form/PartnerSelector";
-import { VisualizationSelector } from "./form/VisualizationSelector";
-import { usePartnerPlans } from "./form/usePartnerPlans";
+import { DateRangeSelector } from "@/components/tariff-comparison/form/DateRangeSelector";
+import { PartnerSelector } from "@/components/tariff-comparison/form/PartnerSelector";
+import { VisualizationSelector } from "@/components/tariff-comparison/form/VisualizationSelector";
+import { usePartnerPlans } from "@/components/tariff-comparison/form/usePartnerPlans";
 
-export function ComparisonForm({
+export function DatabaseManager({
   dateRange,
   setDateRange,
   selectedPartners,

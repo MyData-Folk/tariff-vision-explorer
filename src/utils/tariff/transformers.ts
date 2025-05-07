@@ -2,8 +2,9 @@
 import { format, addDays } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { DailyRate } from "@/services/types";
-import { ChartData, SelectedPartner, DifferenceData } from "@/components/tariff-comparison/types";
+import { ChartData, SelectedPartner } from "@/components/tariff-comparison/types";
 import { supabase } from "@/integrations/supabase/client";
+import { getPlanRules } from "./rules";
 
 // Transform data for chart
 export const transformDataForChart = async (
@@ -16,15 +17,8 @@ export const transformDataForChart = async (
   }
 
   // Récupérer les règles de plan depuis la base de données
-  const { data: planRulesData, error: planRulesError } = await supabase
-    .from('plan_rules')
-    .select('*');
-
-  if (planRulesError) {
-    console.error("Erreur lors de la récupération des règles de plan:", planRulesError);
-    return [];
-  }
-
+  const planRulesData = await getPlanRules();
+  
   const data: ChartData[] = [];
   
   // Créer un mappage pour un accès rapide aux tarifs de base
@@ -165,42 +159,4 @@ export const transformDataForChart = async (
   }
   
   return data;
-};
-
-// Calculate differences between partners for analysis
-export const calculateDifferences = (
-  chartData: ChartData[],
-  selectedPartners: SelectedPartner[]
-): DifferenceData[] => {
-  if (!chartData.length || selectedPartners.length < 2) return [];
-
-  const firstPartner = `${selectedPartners[0].partnerName} - ${selectedPartners[0].planName}`;
-  
-  const differences: DifferenceData[] = selectedPartners.slice(1).map(partner => {
-    const currentPartner = `${partner.partnerName} - ${partner.planName}`;
-    
-    // Calculate average difference
-    const avgDiff = chartData.reduce((sum, day) => {
-      return sum + (Number(day[currentPartner]) - Number(day[firstPartner]));
-    }, 0) / chartData.length;
-
-    // Calculate percentage difference
-    const avgFirstPartner = chartData.reduce((sum, day) => {
-      return sum + Number(day[firstPartner]);
-    }, 0) / chartData.length;
-    
-    const percentDiff = (avgDiff / avgFirstPartner) * 100;
-
-    const isPositive = avgDiff > 0;
-
-    return {
-      plan: currentPartner,
-      baselinePlan: firstPartner,
-      averageDifference: Math.abs(Math.round(avgDiff)),
-      percentDifference: Math.abs(percentDiff.toFixed(1)), // Convert to string
-      isAbove: isPositive,
-    };
-  });
-
-  return differences;
 };

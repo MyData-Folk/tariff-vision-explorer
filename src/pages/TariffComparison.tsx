@@ -29,7 +29,7 @@ import {
   SelectedPartner,
   ChartData
 } from "@/components/tariff-comparison";
-import { transformDataForChart, calculateDifferences } from "@/utils/tariff-utils";
+import { transformDataForChart, calculateDifferences } from "@/utils/tariff";
 
 const TariffComparison = () => {
   const [dateRange, setDateRange] = useState<DateRange>({
