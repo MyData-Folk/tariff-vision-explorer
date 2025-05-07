@@ -197,7 +197,7 @@ export const calculateDifferences = (
       plan: currentPartner,
       baselinePlan: firstPartner,
       averageDifference: Math.abs(Math.round(avgDiff)),
-      percentDifference: Math.abs(percentDiff.toFixed(1)), // Converti en string
+      percentDifference: Math.abs(percentDiff.toFixed(1)), // Convert to string
       isAbove: isPositive,
     };
   });
