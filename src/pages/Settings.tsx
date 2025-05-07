@@ -1,5 +1,4 @@
-
-import React from "react";
+import React, { useState } from "react";
 import {
   Card,
   CardContent,
@@ -27,9 +26,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Settings, User } from "lucide-react";
+import { Settings, User, Lock, Database as DatabaseIcon } from "lucide-react";
+import DatabaseManager from "@/components/admin/DatabaseManager";
 
 const SettingsPage = () => {
+  // État pour contrôler l'affichage de l'interface d'administration
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [showAdmin, setShowAdmin] = useState(false);
+
+  // Fonction pour valider le mot de passe admin
+  const handleAdminAccess = () => {
+    // Dans une vraie application, vous feriez une vérification côté serveur
+    // Pour cette démo, on utilise un mot de passe simple
+    if (adminPassword === "admin123") {
+      setShowAdmin(true);
+      setIsAdminMode(true);
+    } else {
+      // Afficher une erreur si le mot de passe est incorrect
+      alert("Mot de passe incorrect");
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold tracking-tight">Paramètres</h1>
@@ -39,6 +57,7 @@ const SettingsPage = () => {
           <TabsTrigger value="general">Général</TabsTrigger>
           <TabsTrigger value="account">Compte</TabsTrigger>
           <TabsTrigger value="data">Données</TabsTrigger>
+          <TabsTrigger value="admin">Administration</TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="space-y-4">
           <Card>
@@ -449,6 +468,64 @@ const SettingsPage = () => {
               <Button>Enregistrer les modifications</Button>
             </CardFooter>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="admin" className="space-y-4">
+          {!isAdminMode ? (
+            <Card className="glass-effect">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock className="h-5 w-5" />
+                  Authentification administrateur
+                </CardTitle>
+                <CardDescription>
+                  Accédez aux fonctionnalités administratives pour gérer la base de données.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="max-w-md mx-auto">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-password">Mot de passe administrateur</Label>
+                    <Input 
+                      id="admin-password" 
+                      type="password" 
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      placeholder="Entrez le mot de passe administrateur"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Pour cette démo, utilisez le mot de passe "admin123"
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full btn-3d"
+                  onClick={handleAdminAccess}
+                >
+                  Accéder aux fonctionnalités administratives
+                </Button>
+              </CardFooter>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              <Card className="glass-effect">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <DatabaseIcon className="h-5 w-5" />
+                    Gestion de la base de données
+                  </CardTitle>
+                  <CardDescription>
+                    Gérez les tables de la base de données directement depuis l'interface.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DatabaseManager />
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

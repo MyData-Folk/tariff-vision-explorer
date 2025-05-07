@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { format, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -10,8 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { CalendarDays, ChevronDown } from "lucide-react";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { CalendarDays, ChevronDown, Plus, X } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -44,21 +43,33 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { DateRange } from "react-day-picker";
 import { fetchPlans, fetchPartners, fetchDailyBaseRates, Plan, Partner } from "@/services/supabaseService";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ChartData {
   date: string;
   [key: string]: string | number;
 }
 
+interface SelectedPartner {
+  partnerId: string;
+  partnerName: string;
+  planId: string;
+  planName: string;
+}
+
 // Fonction pour transformer les données de la base en données pour le graphique
 const transformDataForChart = (
   baseRates: any[], 
-  startDate: Date, 
-  endDate: Date, 
-  selectedPlans: string[]
+  dateRange: DateRange, 
+  selectedPartners: SelectedPartner[]
 ): ChartData[] => {
+  if (!dateRange.from || !dateRange.to || selectedPartners.length === 0) {
+    return [];
+  }
+
   const data: ChartData[] = [];
   
   // Créer une map des dates pour un accès plus rapide
@@ -72,16 +83,15 @@ const transformDataForChart = (
   
   // Définir les taux de base pour chaque plan
   const planMultipliers: {[key: string]: number} = {
-    "Booking Standard": 1.05,
-    "Booking Flexible": 1.15,
-    "Expedia Standard": 1.03,
-    "Expedia Flexible": 1.13,
-    "Direct": 1,
+    "standard": 1.00,
+    "flexible": 1.15,
+    "discount": 0.90,
+    "premium": 1.25
   };
   
   // Pour chaque jour dans la plage de dates
-  let currentDate = new Date(startDate);
-  const lastDate = new Date(endDate);
+  let currentDate = new Date(dateRange.from);
+  const lastDate = new Date(dateRange.to);
   
   while (currentDate <= lastDate) {
     const dateStr = format(currentDate, "yyyy-MM-dd");
@@ -91,22 +101,47 @@ const transformDataForChart = (
     const rates = ratesMap.get(dateStr);
     
     if (rates) {
-      // Calculer les tarifs pour chaque plan sélectionné
-      selectedPlans.forEach(plan => {
-        const baseRate = rates.ota_rate; // On utilise le taux OTA comme base
-        const multiplier = planMultipliers[plan] || 1;
-        entry[plan] = Math.round(baseRate * multiplier);
+      // Calculer les tarifs pour chaque partenaire sélectionné
+      selectedPartners.forEach(partnerData => {
+        // Déterminer le taux de base à utiliser (ota ou travco)
+        // Par défaut utiliser ota_rate
+        const baseRate = rates.ota_rate;
+        
+        // Déterminer le multiplicateur en fonction du plan (code simplifié)
+        const planCode = partnerData.planName.toLowerCase();
+        let multiplier = 1;
+        
+        for (const [planKey, planValue] of Object.entries(planMultipliers)) {
+          if (planCode.includes(planKey)) {
+            multiplier = planValue;
+            break;
+          }
+        }
+        
+        const displayName = `${partnerData.partnerName} - ${partnerData.planName}`;
+        // Convertir en nombre et arrondir
+        entry[displayName] = Math.round(Number(baseRate) * multiplier);
       });
       
       data.push(entry);
     } else {
-      // Si nous n'avons pas de données pour cette date, utiliser des estimations basées sur des jours similaires
+      // Si nous n'avons pas de données pour cette date, utiliser des estimations
       const isWeekend = [0, 6].includes(currentDate.getDay());
       const baseRate = isWeekend ? 140 : 120; // Estimation
       
-      selectedPlans.forEach(plan => {
-        const multiplier = planMultipliers[plan] || 1;
-        entry[plan] = Math.round(baseRate * multiplier);
+      selectedPartners.forEach(partnerData => {
+        const planCode = partnerData.planName.toLowerCase();
+        let multiplier = 1;
+        
+        for (const [planKey, planValue] of Object.entries(planMultipliers)) {
+          if (planCode.includes(planKey)) {
+            multiplier = planValue;
+            break;
+          }
+        }
+        
+        const displayName = `${partnerData.partnerName} - ${partnerData.planName}`;
+        entry[displayName] = Math.round(baseRate * multiplier);
       });
       
       data.push(entry);
@@ -119,29 +154,32 @@ const transformDataForChart = (
   return data;
 };
 
-const comparisonModes = ["line", "bar", "table"];
+const comparisonModes = ["line", "bar", "table", "both"];
 const comparisonModeLabels = {
   line: "Ligne",
   bar: "Barres",
   table: "Tableau",
+  both: "Les deux"
 };
 
 const TariffComparison = () => {
-  const [startDate, setStartDate] = useState<Date>(new Date());
-  const [endDate, setEndDate] = useState<Date>(addDays(new Date(), 7));
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: new Date(),
+    to: addDays(new Date(), 7)
+  });
   const [comparisonMode, setComparisonMode] = useState<string>("line");
   const [chartData, setChartData] = useState<ChartData[]>([]);
-  const [selectedPlans, setSelectedPlans] = useState<string[]>([
-    "Booking Standard",
-    "Expedia Standard",
-    "Direct",
-  ]);
+  const [selectedPartners, setSelectedPartners] = useState<SelectedPartner[]>([{
+    partnerId: "",
+    partnerName: "",
+    planId: "",
+    planName: ""
+  }]);
   const [hasCompared, setHasCompared] = useState(false);
-  const [availablePlans, setAvailablePlans] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [allPlans, setAllPlans] = useState<Plan[]>([]);
   const [allPartners, setAllPartners] = useState<Partner[]>([]);
-
+  
   useEffect(() => {
     // Chargement des plans et partenaires au chargement de la page
     const loadInitialData = async () => {
@@ -154,15 +192,16 @@ const TariffComparison = () => {
         setAllPlans(plans);
         setAllPartners(partners);
         
-        // Construire les plans disponibles à partir des données réelles
-        const planNames = [
-          "Booking Standard",
-          "Booking Flexible",
-          "Expedia Standard", 
-          "Expedia Flexible",
-          "Direct"
-        ];
-        setAvailablePlans(planNames);
+        if (partners.length > 0) {
+          setSelectedPartners([
+            {
+              partnerId: partners[0].id,
+              partnerName: partners[0].name,
+              planId: "",
+              planName: ""
+            }
+          ]);
+        }
       } catch (error) {
         console.error("Erreur lors du chargement des données initiales:", error);
         toast.error("Impossible de charger les données initiales");
@@ -172,20 +211,88 @@ const TariffComparison = () => {
     loadInitialData();
   }, []);
   
+  const addPartner = () => {
+    if (selectedPartners.length < 3) {
+      setSelectedPartners([...selectedPartners, {
+        partnerId: "",
+        partnerName: "",
+        planId: "",
+        planName: ""
+      }]);
+    } else {
+      toast.warning("Vous ne pouvez comparer que 3 partenaires maximum");
+    }
+  };
+  
+  const removePartner = (index: number) => {
+    if (selectedPartners.length > 1) {
+      const newPartners = [...selectedPartners];
+      newPartners.splice(index, 1);
+      setSelectedPartners(newPartners);
+    }
+  };
+  
+  const updatePartner = (index: number, field: keyof SelectedPartner, value: string) => {
+    const newPartners = [...selectedPartners];
+    newPartners[index] = { ...newPartners[index], [field]: value };
+    
+    // Si c'est l'ID du partenaire qui change, mettons à jour aussi le nom
+    if (field === 'partnerId') {
+      const partner = allPartners.find(p => p.id === value);
+      if (partner) {
+        newPartners[index].partnerName = partner.name;
+      }
+    }
+    
+    // Si c'est l'ID du plan qui change, mettons à jour aussi le nom
+    if (field === 'planId') {
+      const plan = allPlans.find(p => p.id === value);
+      if (plan) {
+        newPartners[index].planName = plan.description;
+      }
+    }
+    
+    setSelectedPartners(newPartners);
+  };
+  
+  const getPlansForPartner = (partnerId: string) => {
+    if (!partnerId) return [];
+    return allPlans.filter(plan => {
+      // Logique simplifiée pour l'association des plans aux partenaires
+      // En pratique, vous pourriez avoir besoin d'une requête spécifique
+      return true; // Pour l'instant, retourner tous les plans
+    });
+  };
+
   const handleCompare = async () => {
+    // Vérifier que toutes les sélections sont complètes
+    const isSelectionComplete = selectedPartners.every(
+      partner => partner.partnerId && partner.planId
+    );
+    
+    if (!isSelectionComplete) {
+      toast.error("Veuillez sélectionner un partenaire et un plan pour chaque comparaison");
+      return;
+    }
+    
+    if (!dateRange.from || !dateRange.to) {
+      toast.error("Veuillez sélectionner une plage de dates");
+      return;
+    }
+    
     setIsLoading(true);
     try {
-      const formattedStartDate = format(startDate, "yyyy-MM-dd");
-      const formattedEndDate = format(endDate, "yyyy-MM-dd");
+      const formattedStartDate = format(dateRange.from, "yyyy-MM-dd");
+      const formattedEndDate = format(dateRange.to, "yyyy-MM-dd");
       
       const dailyRates = await fetchDailyBaseRates(formattedStartDate, formattedEndDate);
       
       if (dailyRates.length === 0) {
         toast.warning("Pas de données disponibles pour cette période");
-        const data = transformDataForChart([], startDate, endDate, selectedPlans);
+        const data = transformDataForChart([], dateRange, selectedPartners);
         setChartData(data);
       } else {
-        const data = transformDataForChart(dailyRates, startDate, endDate, selectedPlans);
+        const data = transformDataForChart(dailyRates, dateRange, selectedPartners);
         setChartData(data);
       }
       
@@ -199,24 +306,30 @@ const TariffComparison = () => {
   };
 
   const calculateDifferences = () => {
-    if (!chartData.length || selectedPlans.length < 2) return [];
+    if (!chartData.length || selectedPartners.length < 2) return [];
 
-    const firstPlan = selectedPlans[0];
-    const differences = selectedPlans.slice(1).map(plan => {
+    const firstPartner = `${selectedPartners[0].partnerName} - ${selectedPartners[0].planName}`;
+    
+    const differences = selectedPartners.slice(1).map(partner => {
+      const currentPartner = `${partner.partnerName} - ${partner.planName}`;
+      
       // Calculate average difference
       const avgDiff = chartData.reduce((sum, day) => {
-        return sum + (Number(day[plan]) - Number(day[firstPlan]));
+        return sum + (Number(day[currentPartner]) - Number(day[firstPartner]));
       }, 0) / chartData.length;
 
       // Calculate percentage difference
-      const avgFirstPlan = chartData.reduce((sum, day) => sum + Number(day[firstPlan]), 0) / chartData.length;
-      const percentDiff = (avgDiff / avgFirstPlan) * 100;
+      const avgFirstPartner = chartData.reduce((sum, day) => {
+        return sum + Number(day[firstPartner]);
+      }, 0) / chartData.length;
+      
+      const percentDiff = (avgDiff / avgFirstPartner) * 100;
 
       const isPositive = avgDiff > 0;
 
       return {
-        plan,
-        baselinePlan: firstPlan,
+        plan: currentPartner,
+        baselinePlan: firstPartner,
         averageDifference: Math.abs(Math.round(avgDiff)),
         percentDifference: Math.abs(percentDiff.toFixed(1)),
         isAbove: isPositive,
@@ -228,14 +341,6 @@ const TariffComparison = () => {
   
   const differencesData = calculateDifferences();
 
-  const togglePlan = (plan: string) => {
-    setSelectedPlans(prev =>
-      prev.includes(plan)
-        ? prev.filter(p => p !== plan)
-        : [...prev, plan]
-    );
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold tracking-tight">Comparaison des tarifs</h1>
@@ -244,105 +349,100 @@ const TariffComparison = () => {
         <CardHeader>
           <CardTitle>Paramètres de comparaison</CardTitle>
           <CardDescription>
-            Sélectionnez une période et des plans tarifaires à comparer
+            Sélectionnez une période et des partenaires à comparer
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-3">
-              <div className="font-medium">Période</div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left",
-                          !startDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        {startDate ? format(startDate, "d MMM", { locale: fr }) : "Date de début"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={startDate}
-                        onSelect={(date) => {
-                          setStartDate(date || new Date());
-                          if (date && date > endDate) {
-                            setEndDate(addDays(date, 1));
-                          }
-                        }}
-                        initialFocus
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="flex-1">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left",
-                          !endDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        {endDate ? format(endDate, "d MMM", { locale: fr }) : "Date de fin"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={endDate}
-                        onSelect={(date) => date && setEndDate(date)}
-                        fromDate={startDate ? addDays(startDate, 1) : undefined}
-                        initialFocus
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
+          <div className="space-y-6">
+            {/* Sélection de la période */}
+            <div className="space-y-2">
+              <label className="font-medium">Période</label>
+              <DateRangePicker
+                date={dateRange}
+                onDateChange={setDateRange}
+                className="w-full"
+              />
             </div>
             
-            <div className="space-y-3">
-              <div className="font-medium">Plans tarifaires</div>
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  {availablePlans.map((plan) => (
-                    <Button
-                      key={plan}
-                      variant={selectedPlans.includes(plan) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => togglePlan(plan)}
-                      className={cn(
-                        selectedPlans.includes(plan) ? "bg-primary" : ""
-                      )}
+            {/* Sélection des partenaires */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <label className="font-medium">Partenaires et plans</label>
+                {selectedPartners.length < 3 && (
+                  <Button 
+                    onClick={addPartner} 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" /> Ajouter un partenaire
+                  </Button>
+                )}
+              </div>
+              
+              {selectedPartners.map((partner, index) => (
+                <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center border p-3 rounded-md bg-card/50">
+                  <div className="md:col-span-5">
+                    <label className="text-sm mb-1 block">Partenaire {index + 1}</label>
+                    <select
+                      value={partner.partnerId}
+                      onChange={(e) => updatePartner(index, 'partnerId', e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2"
                     >
-                      {plan}
-                    </Button>
-                  ))}
+                      <option value="">Sélectionner un partenaire</option>
+                      {allPartners.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div className="md:col-span-5">
+                    <label className="text-sm mb-1 block">Plan tarifaire</label>
+                    <select
+                      value={partner.planId}
+                      onChange={(e) => updatePartner(index, 'planId', e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2"
+                      disabled={!partner.partnerId}
+                    >
+                      <option value="">Sélectionner un plan</option>
+                      {getPlansForPartner(partner.partnerId).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.description}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {index > 0 && (
+                    <div className="md:col-span-2 flex justify-end">
+                      <Button 
+                        onClick={() => removePartner(index)} 
+                        variant="ghost" 
+                        size="icon"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/20"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ))}
             </div>
             
-            <div className="space-y-3">
-              <div className="font-medium">Mode de visualisation</div>
-              <div className="flex items-center gap-4">
+            {/* Mode de visualisation */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div className="space-y-2">
+                <label className="font-medium">Mode de visualisation</label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-40 justify-between">
+                    <Button variant="outline" className="w-full justify-between">
                       {comparisonModeLabels[comparisonMode as keyof typeof comparisonModeLabels]}
-                      <ChevronDown className="h-4 w-4 opacity-50" />
+                      <ChevronDown className="h-4 w-4 opacity-50 ml-2" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-40">
+                  <DropdownMenuContent className="w-full">
                     <DropdownMenuRadioGroup value={comparisonMode} onValueChange={setComparisonMode}>
                       {comparisonModes.map((mode) => (
                         <DropdownMenuRadioItem key={mode} value={mode}>
@@ -352,7 +452,9 @@ const TariffComparison = () => {
                     </DropdownMenuRadioGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                
+              </div>
+              
+              <div className="flex items-center justify-end">
                 <Button onClick={handleCompare} disabled={isLoading}>
                   {isLoading ? "Chargement..." : "Comparer"}
                 </Button>
@@ -375,12 +477,12 @@ const TariffComparison = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>
-                    Évolution des tarifs ({format(startDate, "d MMM", { locale: fr })} - {format(endDate, "d MMM yyyy", { locale: fr })})
+                    Évolution des tarifs ({dateRange.from ? format(dateRange.from, "d MMM", { locale: fr }) : ""} - {dateRange.to ? format(dateRange.to, "d MMM yyyy", { locale: fr }) : ""})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[400px] w-full">
-                    {comparisonMode === "line" && (
+                  {(comparisonMode === "line" || comparisonMode === "both") && (
+                    <div className="h-[400px] w-full mb-6">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={chartData}>
                           <CartesianGrid strokeDasharray="3 3" />
@@ -391,22 +493,30 @@ const TariffComparison = () => {
                             labelFormatter={(date) => format(new Date(date), "eeee d MMMM", { locale: fr })}
                           />
                           <Legend />
-                          {selectedPlans.map((plan, index) => (
-                            <Line
-                              key={plan}
-                              type="monotone"
-                              dataKey={plan}
-                              stroke={["#1E40AF", "#10B981", "#8B5CF6", "#F59E0B", "#6B7280"][index % 5]}
-                              strokeWidth={2}
-                              activeDot={{ r: 6 }}
-                              name={plan}
-                            />
-                          ))}
+                          {selectedPartners.map((partner, index) => {
+                            const displayName = `${partner.partnerName} - ${partner.planName}`;
+                            if (!displayName.includes("undefined")) {
+                              return (
+                                <Line
+                                  key={displayName}
+                                  type="monotone"
+                                  dataKey={displayName}
+                                  stroke={["#1E40AF", "#10B981", "#8B5CF6"][index % 3]}
+                                  strokeWidth={2}
+                                  activeDot={{ r: 6 }}
+                                  name={displayName}
+                                />
+                              );
+                            }
+                            return null;
+                          })}
                         </LineChart>
                       </ResponsiveContainer>
-                    )}
-                    
-                    {comparisonMode === "bar" && (
+                    </div>
+                  )}
+                  
+                  {(comparisonMode === "bar" || comparisonMode === "both") && (
+                    <div className="h-[400px] w-full mb-6">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData}>
                           <CartesianGrid strokeDasharray="3 3" />
@@ -417,47 +527,67 @@ const TariffComparison = () => {
                             labelFormatter={(date) => format(new Date(date), "eeee d MMMM", { locale: fr })}
                           />
                           <Legend />
-                          {selectedPlans.map((plan, index) => (
-                            <Bar 
-                              key={plan} 
-                              dataKey={plan} 
-                              fill={["#1E40AF", "#10B981", "#8B5CF6", "#F59E0B", "#6B7280"][index % 5]}
-                              name={plan}
-                            />
-                          ))}
+                          {selectedPartners.map((partner, index) => {
+                            const displayName = `${partner.partnerName} - ${partner.planName}`;
+                            if (!displayName.includes("undefined")) {
+                              return (
+                                <Bar 
+                                  key={displayName}
+                                  dataKey={displayName} 
+                                  fill={["#1E40AF", "#10B981", "#8B5CF6"][index % 3]}
+                                  name={displayName}
+                                />
+                              );
+                            }
+                            return null;
+                          })}
                         </BarChart>
                       </ResponsiveContainer>
-                    )}
-                    
-                    {comparisonMode === "table" && (
-                      <div className="overflow-x-auto tariff-scrollbar">
-                        <table className="w-full border-collapse text-sm">
-                          <thead>
-                            <tr>
-                              <th className="border px-4 py-2 text-left">Date</th>
-                              {selectedPlans.map((plan) => (
-                                <th key={plan} className="border px-4 py-2 text-left">{plan}</th>
-                              ))}
+                    </div>
+                  )}
+                  
+                  {(comparisonMode === "table" || comparisonMode === "both") && (
+                    <div className="overflow-x-auto tariff-scrollbar">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr>
+                            <th className="border px-4 py-2 text-left">Date</th>
+                            {selectedPartners.map((partner, index) => {
+                              const displayName = `${partner.partnerName} - ${partner.planName}`;
+                              if (!displayName.includes("undefined")) {
+                                return (
+                                  <th key={index} className="border px-4 py-2 text-left">
+                                    {displayName}
+                                  </th>
+                                );
+                              }
+                              return null;
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {chartData.map((row, i) => (
+                            <tr key={i} className={i % 2 === 0 ? "bg-muted/50" : ""}>
+                              <td className="border px-4 py-2">
+                                {format(new Date(row.date), "eeee d MMM", { locale: fr })}
+                              </td>
+                              {selectedPartners.map((partner, index) => {
+                                const displayName = `${partner.partnerName} - ${partner.planName}`;
+                                if (!displayName.includes("undefined")) {
+                                  return (
+                                    <td key={index} className="border px-4 py-2 font-medium">
+                                      {row[displayName]} €
+                                    </td>
+                                  );
+                                }
+                                return null;
+                              })}
                             </tr>
-                          </thead>
-                          <tbody>
-                            {chartData.map((row, i) => (
-                              <tr key={i} className={i % 2 === 0 ? "bg-muted/50" : ""}>
-                                <td className="border px-4 py-2">
-                                  {format(new Date(row.date), "eeee d MMM", { locale: fr })}
-                                </td>
-                                {selectedPlans.map((plan) => (
-                                  <td key={plan} className="border px-4 py-2 font-medium">
-                                    {row[plan]} €
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

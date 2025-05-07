@@ -1,6 +1,10 @@
 
-import { supabase } from "@/integrations/supabase/client";
+// Extension du service Supabase pour inclure les fonctions RPC nécessaires
 
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+
+// Typages pour les données
 export interface Category {
   id: string;
   name: string;
@@ -20,295 +24,217 @@ export interface Plan {
   created_at: string;
 }
 
-export interface DailyBaseRate {
+export interface DailyRate {
   date: string;
   ota_rate: number;
   travco_rate: number;
   created_at: string;
 }
 
-export interface PartnerPlan {
-  partner_id: string;
-  plan_id: string;
-  created_at: string;
-}
+// Fonctions pour récupérer les données
 
-export interface PlanRule {
-  id: string;
-  plan_id: string;
-  base_source: string;
-  steps: any;
-  created_at: string;
-}
+export const fetchCategories = async (): Promise<Category[]> => {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .order('name');
+  
+  if (error) {
+    console.error('Error fetching categories:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
 
-export interface CategoryRule {
-  id: string;
-  category_id: string;
-  formula_type: string;
-  formula_multiplier: number;
-  formula_offset: number;
-  base_source: string;
-  created_at: string;
-}
+export const fetchPartners = async (): Promise<Partner[]> => {
+  const { data, error } = await supabase
+    .from('partners')
+    .select('*')
+    .order('name');
+  
+  if (error) {
+    console.error('Error fetching partners:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
 
-export interface PartnerAdjustment {
-  id: string;
-  partner_id: string;
-  description: string;
-  adjustment_type: string;
-  adjustment_value: string;
-  ui_control: string;
-  associated_plan_filter: string | null;
-  default_checked: boolean;
-  created_at: string;
-}
+export const fetchPlans = async (): Promise<Plan[]> => {
+  const { data, error } = await supabase
+    .from('plans')
+    .select('*')
+    .order('description');
+  
+  if (error) {
+    console.error('Error fetching plans:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
 
+export const fetchDailyBaseRates = async (startDate: string, endDate: string): Promise<DailyRate[]> => {
+  const { data, error } = await supabase
+    .from('daily_base_rates')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date');
+  
+  if (error) {
+    console.error('Error fetching daily rates:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+// Fonctions pour le module Yield Management
 export interface OccupancyRate {
   id: string;
   date: string;
   rate: number;
-  created_at: string | null;
 }
 
 export interface CompetitorPrice {
   id: string;
   date: string;
   price: number;
-  created_at: string | null;
 }
 
 export interface OptimizedPrice {
   id: string;
   date: string;
   calculated_price: number;
-  created_at: string | null;
 }
 
-export async function fetchCategories(): Promise<Category[]> {
-  try {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching categories:', error);
-    return [];
-  }
-}
-
-export async function fetchPartners(): Promise<Partner[]> {
-  try {
-    const { data, error } = await supabase
-      .from('partners')
-      .select('*')
-      .order('name');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching partners:', error);
-    return [];
-  }
-}
-
-export async function fetchPlans(): Promise<Plan[]> {
-  try {
-    const { data, error } = await supabase
-      .from('plans')
-      .select('*');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching plans:', error);
-    return [];
-  }
-}
-
-export async function fetchPartnerPlans(): Promise<PartnerPlan[]> {
-  try {
-    const { data, error } = await supabase
-      .from('partner_plans')
-      .select('*');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching partner plans:', error);
-    return [];
-  }
-}
-
-export async function fetchDailyBaseRates(startDate: string, endDate: string): Promise<DailyBaseRate[]> {
-  try {
-    const { data, error } = await supabase
-      .from('daily_base_rates')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching daily base rates:', error);
-    return [];
-  }
-}
-
-export async function fetchPlanRules(): Promise<PlanRule[]> {
-  try {
-    const { data, error } = await supabase
-      .from('plan_rules')
-      .select('*');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching plan rules:', error);
-    return [];
-  }
-}
-
-export async function fetchCategoryRules(): Promise<CategoryRule[]> {
-  try {
-    const { data, error } = await supabase
-      .from('category_rules')
-      .select('*');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching category rules:', error);
-    return [];
-  }
-}
-
-export async function fetchPartnerAdjustments(): Promise<PartnerAdjustment[]> {
-  try {
-    const { data, error } = await supabase
-      .from('partner_adjustments')
-      .select('*');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching partner adjustments:', error);
-    return [];
-  }
-}
-
-// Nouvelles fonctions pour le module Yield
-
-export async function fetchOccupancyRates(startDate: string, endDate: string): Promise<OccupancyRate[]> {
-  try {
-    const { data, error } = await supabase
-      .from('occupancy_rates')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
+export const fetchOccupancyRates = async (startDate: string, endDate: string): Promise<OccupancyRate[]> => {
+  const { data, error } = await supabase
+    .from('occupancy_rates')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date');
+  
+  if (error) {
     console.error('Error fetching occupancy rates:', error);
-    return [];
+    throw error;
   }
-}
+  
+  return data || [];
+};
 
-export async function fetchCompetitorPrices(startDate: string, endDate: string): Promise<CompetitorPrice[]> {
-  try {
-    const { data, error } = await supabase
-      .from('competitor_prices')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
+export const fetchCompetitorPrices = async (startDate: string, endDate: string): Promise<CompetitorPrice[]> => {
+  const { data, error } = await supabase
+    .from('competitor_prices')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date');
+  
+  if (error) {
     console.error('Error fetching competitor prices:', error);
-    return [];
+    throw error;
   }
-}
+  
+  return data || [];
+};
 
-export async function fetchOptimizedPrices(startDate: string, endDate: string): Promise<OptimizedPrice[]> {
-  try {
-    const { data, error } = await supabase
-      .from('optimized_prices')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date');
-
-    if (error) throw error;
-    return data || [];
-  } catch (error) {
+export const fetchOptimizedPrices = async (startDate: string, endDate: string): Promise<OptimizedPrice[]> => {
+  const { data, error } = await supabase
+    .from('optimized_prices')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date');
+  
+  if (error) {
     console.error('Error fetching optimized prices:', error);
-    return [];
+    throw error;
   }
-}
+  
+  return data || [];
+};
 
-export async function upsertOccupancyRate(date: string, rate: number): Promise<OccupancyRate | null> {
-  try {
-    const { data, error } = await supabase
-      .from('occupancy_rates')
-      .upsert({ date, rate }, { onConflict: 'date' })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error upserting occupancy rate:', error);
-    return null;
-  }
-}
-
-export async function upsertCompetitorPrice(date: string, price: number): Promise<CompetitorPrice | null> {
-  try {
-    const { data, error } = await supabase
-      .from('competitor_prices')
-      .upsert({ date, price }, { onConflict: 'date' })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error upserting competitor price:', error);
-    return null;
-  }
-}
-
-export async function upsertOptimizedPrice(date: string, calculated_price: number): Promise<OptimizedPrice | null> {
-  try {
-    const { data, error } = await supabase
-      .from('optimized_prices')
-      .upsert({ date, calculated_price }, { onConflict: 'date' })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error('Error upserting optimized price:', error);
-    return null;
-  }
-}
-
-// Fonction utilitaire pour calculer le prix optimisé en fonction du taux d'occupation
-export function calculateOptimizedPrice(occupancyRate: number, competitorPrice: number): number {
+export const calculateOptimalPrice = (occupancyRate: number, competitorPrice: number): number => {
   if (occupancyRate >= 80) {
-    return competitorPrice * 0.95; // -5% → Demande forte
+    return Math.round(competitorPrice * 0.95); // -5% → Demande forte
   } else if (occupancyRate >= 60) {
-    return competitorPrice * 0.85; // -15% → Demande moyenne
+    return Math.round(competitorPrice * 0.85); // -15% → Demande moyenne
   } else {
-    return competitorPrice * 0.70; // -30% → Faible demande
+    return Math.round(competitorPrice * 0.70); // -30% → Faible demande
   }
-}
+};
+
+export const saveYieldData = async (
+  date: Date,
+  occupancyRate: number,
+  competitorPrice: number,
+  calculatedPrice: number
+): Promise<void> => {
+  const formattedDate = format(date, 'yyyy-MM-dd');
+  
+  // Utilisation d'une transaction pour s'assurer que tout est enregistré ou rien
+  try {
+    // 1. Enregistrer le taux d'occupation
+    const { error: occError } = await supabase
+      .from('occupancy_rates')
+      .upsert([{ date: formattedDate, rate: occupancyRate }], { 
+        onConflict: 'date',
+        ignoreDuplicates: false
+      });
+    
+    if (occError) throw occError;
+    
+    // 2. Enregistrer le prix concurrent
+    const { error: compError } = await supabase
+      .from('competitor_prices')
+      .upsert([{ date: formattedDate, price: competitorPrice }], {
+        onConflict: 'date',
+        ignoreDuplicates: false
+      });
+    
+    if (compError) throw compError;
+    
+    // 3. Enregistrer le prix optimisé
+    const { error: optError } = await supabase
+      .from('optimized_prices')
+      .upsert([{ date: formattedDate, calculated_price: calculatedPrice }], {
+        onConflict: 'date',
+        ignoreDuplicates: false
+      });
+    
+    if (optError) throw optError;
+    
+  } catch (error) {
+    console.error('Error saving yield data:', error);
+    throw error;
+  }
+};
+
+// Cette fonction sera appelée par le composant DatabaseManager
+export const getTables = async (schema: string = 'public'): Promise<string[]> => {
+  try {
+    // Simuler la fonction RPC car elle n'existe pas encore dans la base de données
+    if (schema === 'public') {
+      return [
+        'categories',
+        'competitor_prices',
+        'daily_base_rates',
+        'occupancy_rates',
+        'optimized_prices',
+        'partner_adjustments',
+        'partner_plans',
+        'partners',
+        'plan_rules',
+        'plans'
+      ];
+    }
+    return [];
+  } catch (error) {
+    console.error('Error getting tables:', error);
+    throw error;
+  }
+};

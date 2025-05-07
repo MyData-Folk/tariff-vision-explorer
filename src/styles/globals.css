@@ -38,11 +38,11 @@
     --muted-foreground: 215.4 16.3% 56.9%;
     --popover: 224 71% 4%;
     --popover-foreground: 215 20.2% 65.1%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
+    --card: 224 71% 4%;
+    --card-foreground: 213 31% 91%;
     --border: 216 34% 17%;
     --input: 216 34% 17%;
-    --primary: 210 40% 98%;
+    --primary: 24 100% 50%; /* Orange pour primary */
     --primary-foreground: 222.2 47.4% 1.2%;
     --secondary: 222.2 47.4% 11.2%;
     --secondary-foreground: 210 40% 98%;
@@ -64,11 +64,12 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-gradient-to-b from-blue-950 to-black text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
+/* Styles pour les textes avec des couleurs spécifiques */
 .text-tariff-green {
   color: hsl(var(--tariff-green));
 }
@@ -85,25 +86,27 @@
   background-color: hsl(var(--tariff-red));
 }
 
+/* Style de scrollbar personnalisé */
 .tariff-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 .tariff-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: rgba(30, 41, 59, 0.5);
   border-radius: 4px;
 }
 
 .tariff-scrollbar::-webkit-scrollbar-thumb {
-  background: #888;
+  background: rgba(100, 116, 139, 0.8);
   border-radius: 4px;
 }
 
 .tariff-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgba(100, 116, 139, 1);
 }
 
+/* Animation de fade-in pour les éléments */
 .animate-fade-in {
   animation: fadeIn 0.5s ease-in-out;
 }
@@ -117,4 +120,29 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Boutons effet 3D */
+.btn-3d {
+  @apply relative shadow-lg transition-all duration-300 active:translate-y-1 active:shadow-sm;
+  background: linear-gradient(to bottom, hsl(var(--primary)) 0%, hsl(var(--primary)/0.8) 100%);
+  box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+}
+
+/* Effet glacé pour cartes et éléments de UI */
+.glass-effect {
+  @apply bg-white/10 backdrop-blur-lg border border-white/20;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+/* Cartes avec effet dégradé bleu */
+.card-gradient {
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Style pour les titres orange */
+h1, h2, h3 {
+  @apply text-primary font-bold;
 }

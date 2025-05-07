@@ -25,15 +25,27 @@ export function DateRangePicker({
   onDateChange,
   className,
 }: DateRangePickerProps) {
+  const [open, setOpen] = React.useState(false)
+
+  // Cette fonction sera appelée quand une date est sélectionnée
+  const handleSelect = (selectedDate: DateRange | undefined) => {
+    onDateChange(selectedDate)
+    
+    // Si la date de début et la date de fin sont définies, fermer le calendrier
+    if (selectedDate?.from && selectedDate?.to) {
+      setOpen(false)
+    }
+  }
+
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             id="date"
             variant={"outline"}
             className={cn(
-              "w-[300px] justify-start text-left font-normal",
+              "w-full justify-start text-left font-normal",
               !date && "text-muted-foreground"
             )}
           >
@@ -58,9 +70,10 @@ export function DateRangePicker({
             mode="range"
             defaultMonth={date?.from}
             selected={date}
-            onSelect={onDateChange}
+            onSelect={handleSelect}
             numberOfMonths={2}
             locale={fr}
+            className="pointer-events-auto"
           />
         </PopoverContent>
       </Popover>
