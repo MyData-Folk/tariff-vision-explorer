@@ -40,7 +40,7 @@ export const DatabaseManager = ({
   const [isExecuting, setIsExecuting] = useState(false);
   const [queryResult, setQueryResult] = useState<any>(null);
   
-  // Fonction pour exécuter des requêtes SQL - remplaçons l'appel à execute_query par une approche alternative
+  // Fonction pour exécuter des requêtes SQL sans utiliser de RPC non définie
   const executeQuery = async () => {
     if (!sqlQuery.trim()) {
       toast.error("Veuillez entrer une requête SQL");
@@ -49,28 +49,34 @@ export const DatabaseManager = ({
     
     setIsExecuting(true);
     try {
-      // Au lieu d'utiliser une RPC non définie, nous allons utiliser une approche plus simple
-      // pour démontrer la fonctionnalité - dans un environnement de production,
-      // vous devriez créer une fonction RPC appropriée dans Supabase
-      
       // Cette approche est temporaire et ne permet que des opérations SELECT simples
       // pour des raisons de sécurité
       if (sqlQuery.trim().toLowerCase().startsWith("select")) {
-        const { data, error } = await supabase.rpc('execute_read_query', { 
-          query_text: sqlQuery 
-        }).catch(() => {
-          // Fallback si la fonction RPC n'existe pas
-          // Simuler un résultat pour une démonstration
-          return {
-            data: [{ message: "Simulation de résultat (fonction RPC manquante)" }],
-            error: null
-          };
-        });
+        // Approche directe pour les requêtes SELECT - simulation pour démo
+        // Dans un environnement de production, vous devriez implémenter
+        // une fonction RPC sécurisée dans Supabase
         
-        if (error) throw error;
+        // Pour l'instant, nous simulons un résultat
+        let simulatedResult: any[] = [{ message: "Simulation de résultat (fonctionnalité de démo)" }];
         
-        setQueryResult(data);
-        toast.success("Requête exécutée avec succès");
+        try {
+          // Tentative de récupération des tables courantes
+          if (sqlQuery.includes("select * from plans")) {
+            const { data } = await supabase.from("plans").select("*").limit(10);
+            if (data) simulatedResult = data;
+          } else if (sqlQuery.includes("select * from partners")) {
+            const { data } = await supabase.from("partners").select("*").limit(10);
+            if (data) simulatedResult = data;
+          } else if (sqlQuery.includes("select * from category_rules")) {
+            const { data } = await supabase.from("category_rules").select("*").limit(10);
+            if (data) simulatedResult = data;
+          }
+        } catch (innerError) {
+          console.error("Erreur lors de la requête directe:", innerError);
+        }
+        
+        setQueryResult(simulatedResult);
+        toast.success("Requête exécutée avec succès (mode démo)");
       } else {
         // Pour les autres types de requêtes, nous affichons simplement un message
         toast.info("Seules les requêtes SELECT sont autorisées dans cette démo");

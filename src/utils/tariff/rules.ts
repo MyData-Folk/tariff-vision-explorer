@@ -8,7 +8,7 @@ export interface PlanRule {
   plan_id: string;
   base_source: string;
   created_at?: string;
-  steps: any[]; // Type pour les étapes, adapté pour travailler avec Json
+  steps: Json | any[]; // Type pour les étapes, adapté pour travailler avec Json
 }
 
 // Interface pour les règles de catégorie
@@ -118,25 +118,37 @@ export const applyCategoryRules = (baseRate: number, categoryRule: CategoryRule)
 
 // Applique les règles de calcul pour un plan donné
 export const applyPlanRules = (baseRate: number, planRule: PlanRule): number => {
-  if (!planRule || !planRule.steps || !Array.isArray(planRule.steps)) return baseRate;
+  if (!planRule || !planRule.steps) return baseRate;
   
   let calculatedRate = baseRate;
   
+  // Convertir steps en tableau si ce n'est pas déjà le cas
+  const stepsArray = Array.isArray(planRule.steps) ? planRule.steps : 
+                    (typeof planRule.steps === 'object' && planRule.steps !== null) ? 
+                    Object.values(planRule.steps) : [];
+  
   // Appliquer chaque étape dans l'ordre
-  planRule.steps.forEach(step => {
-    switch (step.type) {
+  stepsArray.forEach(step => {
+    if (!step || typeof step !== 'object') return;
+    
+    const type = step.type;
+    const value = parseFloat(step.value);
+    
+    if (isNaN(value)) return;
+    
+    switch (type) {
       case 'multiply':
-        calculatedRate *= parseFloat(step.value);
+        calculatedRate *= value;
         break;
       case 'add':
-        calculatedRate += parseFloat(step.value);
+        calculatedRate += value;
         break;
       case 'subtract':
-        calculatedRate -= parseFloat(step.value);
+        calculatedRate -= value;
         break;
       case 'divide':
-        if (parseFloat(step.value) !== 0) {
-          calculatedRate /= parseFloat(step.value);
+        if (value !== 0) {
+          calculatedRate /= value;
         }
         break;
     }
