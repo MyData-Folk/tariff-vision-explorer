@@ -1,4 +1,3 @@
-
 // Extension du service Supabase pour inclure les fonctions RPC nécessaires
 
 import { supabase } from "@/integrations/supabase/client";
@@ -158,13 +157,60 @@ export const fetchOptimizedPrices = async (startDate: string, endDate: string): 
   return data || [];
 };
 
-export const calculateOptimalPrice = (occupancyRate: number, competitorPrice: number): number => {
+// Renamed from calculateOptimalPrice to calculateOptimizedPrice to match import
+export const calculateOptimizedPrice = (occupancyRate: number, competitorPrice: number): number => {
   if (occupancyRate >= 80) {
     return Math.round(competitorPrice * 0.95); // -5% → Demande forte
   } else if (occupancyRate >= 60) {
     return Math.round(competitorPrice * 0.85); // -15% → Demande moyenne
   } else {
     return Math.round(competitorPrice * 0.70); // -30% → Faible demande
+  }
+};
+
+// Keep the old function name for backwards compatibility
+export const calculateOptimalPrice = calculateOptimizedPrice;
+
+// CRUD functions for yield management data
+export const upsertOccupancyRate = async (date: string, rate: number): Promise<void> => {
+  const { error } = await supabase
+    .from('occupancy_rates')
+    .upsert([{ date, rate }], { 
+      onConflict: 'date',
+      ignoreDuplicates: false
+    });
+  
+  if (error) {
+    console.error('Error upserting occupancy rate:', error);
+    throw error;
+  }
+};
+
+export const upsertCompetitorPrice = async (date: string, price: number): Promise<void> => {
+  const { error } = await supabase
+    .from('competitor_prices')
+    .upsert([{ date, price }], {
+      onConflict: 'date',
+      ignoreDuplicates: false
+    });
+  
+  if (error) {
+    console.error('Error upserting competitor price:', error);
+    throw error;
+  }
+};
+
+export const upsertOptimizedPrice = async (date: string, calculated_price: number): Promise<void> => {
+  const { error } = await supabase
+    .from('optimized_prices')
+    .upsert([{ date, calculated_price }], {
+      onConflict: 'date',
+      ignoreDuplicates: false
+    });
+  
+  if (error) {
+    console.error('Error upserting optimized price:', error);
+    throw error;
   }
 };
 
@@ -179,35 +225,13 @@ export const saveYieldData = async (
   // Utilisation d'une transaction pour s'assurer que tout est enregistré ou rien
   try {
     // 1. Enregistrer le taux d'occupation
-    const { error: occError } = await supabase
-      .from('occupancy_rates')
-      .upsert([{ date: formattedDate, rate: occupancyRate }], { 
-        onConflict: 'date',
-        ignoreDuplicates: false
-      });
-    
-    if (occError) throw occError;
+    await upsertOccupancyRate(formattedDate, occupancyRate);
     
     // 2. Enregistrer le prix concurrent
-    const { error: compError } = await supabase
-      .from('competitor_prices')
-      .upsert([{ date: formattedDate, price: competitorPrice }], {
-        onConflict: 'date',
-        ignoreDuplicates: false
-      });
-    
-    if (compError) throw compError;
+    await upsertCompetitorPrice(formattedDate, competitorPrice);
     
     // 3. Enregistrer le prix optimisé
-    const { error: optError } = await supabase
-      .from('optimized_prices')
-      .upsert([{ date: formattedDate, calculated_price: calculatedPrice }], {
-        onConflict: 'date',
-        ignoreDuplicates: false
-      });
-    
-    if (optError) throw optError;
-    
+    await upsertOptimizedPrice(formattedDate, calculatedPrice);
   } catch (error) {
     console.error('Error saving yield data:', error);
     throw error;

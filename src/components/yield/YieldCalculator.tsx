@@ -24,6 +24,7 @@ const YieldCalculator = () => {
   const [competitorPrice, setCompetitorPrice] = useState<string>('');
   const [optimizedPrice, setOptimizedPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [calendarOpen, setCalendarOpen] = useState<boolean>(false);
 
   // Validation des entrées
   const isValidInput = (): boolean => {
@@ -74,6 +75,14 @@ const YieldCalculator = () => {
     }
   };
 
+  // Fermer le calendrier après sélection d'une date
+  const handleDateSelect = (selectedDate: Date | undefined) => {
+    if (selectedDate) {
+      setDate(selectedDate);
+      setCalendarOpen(false);
+    }
+  };
+
   return (
     <Card className="w-full max-w-lg mx-auto">
       <CardHeader>
@@ -85,7 +94,7 @@ const YieldCalculator = () => {
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="date">Date</Label>
-          <Popover>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -100,7 +109,7 @@ const YieldCalculator = () => {
               <Calendar
                 mode="single"
                 selected={date}
-                onSelect={(date) => date && setDate(date)}
+                onSelect={handleDateSelect}
                 initialFocus
               />
             </PopoverContent>
