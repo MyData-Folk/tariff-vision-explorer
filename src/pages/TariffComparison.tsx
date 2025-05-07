@@ -105,10 +105,10 @@ const TariffComparison = () => {
       
       if (dailyRates.length === 0) {
         toast.warning("Pas de données disponibles pour cette période");
-        const data = transformDataForChart([], dateRange, selectedPartners);
+        const data = await transformDataForChart([], dateRange, selectedPartners);
         setChartData(data);
       } else {
-        const data = transformDataForChart(dailyRates, dateRange, selectedPartners);
+        const data = await transformDataForChart(dailyRates, dateRange, selectedPartners);
         setChartData(data);
       }
       

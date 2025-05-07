@@ -18,7 +18,7 @@ export interface DifferenceData {
   plan: string;
   baselinePlan: string;
   averageDifference: number;
-  percentDifference: string; // Changé de number à string pour correspondre à l'utilisation
+  percentDifference: string; // Format sous forme de chaîne pour l'affichage
   isAbove: boolean;
 }
 

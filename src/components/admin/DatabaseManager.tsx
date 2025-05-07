@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -7,6 +8,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,7 +44,9 @@ const DatabaseManager = () => {
       setLoading(true);
       try {
         // Fetch all tables in the database
-        const { data, error } = await supabase.from('pg_tables').select('*').ilike('schemaname', 'public');
+        const { data, error } = await supabase
+          .rpc('get_tables') // Utilisation d'une fonction RPC personnalisée à la place de pg_tables
+          .select('*');
 
         if (error) {
           console.error('Error fetching tables:', error);
@@ -51,12 +55,14 @@ const DatabaseManager = () => {
         }
 
         // Extract table names
-        const tableNames = data.map((table: any) => table.tablename);
+        const tableNames = data?.map((table: any) => table.table_name) || [];
 
         // Fetch schema for each table
         const tableSchemas = await Promise.all(
           tableNames.map(async (tableName: string) => {
-            const { data: columns, error: columnError } = await supabase.from('pg_columns').select('*').ilike('tablename', tableName).ilike('schemaname', 'public');
+            const { data: columns, error: columnError } = await supabase
+              .rpc('get_columns', { table_name: tableName }) // Utilisation d'une fonction RPC personnalisée
+              .select('*');
 
             if (columnError) {
               console.error(`Error fetching columns for table ${tableName}:`, columnError);
@@ -66,7 +72,7 @@ const DatabaseManager = () => {
             // Extract column names and types
             const tableSchema: TableSchema = {
               name: tableName,
-              columns: columns.map((column: any) => ({ name: column.columnname, type: column.udt_name })),
+              columns: columns?.map((column: any) => ({ name: column.column_name, type: column.data_type })) || [],
             };
 
             return tableSchema;
@@ -75,7 +81,6 @@ const DatabaseManager = () => {
 
         // Filter out tables with errors
         const validTableSchemas = tableSchemas.filter((schema) => schema !== null) as TableSchema[];
-
         setTables(validTableSchemas);
       } catch (error) {
         console.error('Error fetching tables:', error);
@@ -94,7 +99,11 @@ const DatabaseManager = () => {
 
       setLoading(true);
       try {
-        const { data, error } = await supabase.from(selectedTable).select('*');
+        // Utiliser une requête dynamique via un paramètre de type string est sécuritaire
+        // car nous contrôlons la valeur de selectedTable à partir des options de la liste déroulante
+        const { data, error } = await supabase
+          .from(selectedTable as any)
+          .select('*');
 
         if (error) {
           console.error('Error fetching table data:', error);
@@ -169,7 +178,7 @@ const DatabaseManager = () => {
     try {
       // Correction du problème de type en utilisant un cast explicite
       const { data, error } = await supabase
-        .from(tableName)
+        .from(tableName as any)
         .upsert(rowData as any);
 
       if (error) {
@@ -179,7 +188,7 @@ const DatabaseManager = () => {
       }
 
       // Refresh table data
-      const { data: newData, error: newError } = await supabase.from(tableName).select('*');
+      const { data: newData, error: newError } = await supabase.from(tableName as any).select('*');
       if (newError) {
         console.error('Error fetching updated table data:', newError);
         toast.error('Failed to fetch updated table data');
@@ -209,7 +218,7 @@ const DatabaseManager = () => {
   const handleDeleteData = async (tableName: string, id: any) => {
     setLoading(true);
     try {
-      const { error } = await supabase.from(tableName).delete().match({ id });
+      const { error } = await supabase.from(tableName as any).delete().match({ id });
 
       if (error) {
         console.error('Error deleting data:', error);
@@ -218,7 +227,7 @@ const DatabaseManager = () => {
       }
 
       // Refresh table data
-      const { data: newData, error: newError } = await supabase.from(tableName).select('*');
+      const { data: newData, error: newError } = await supabase.from(tableName as any).select('*');
       if (newError) {
         console.error('Error fetching updated table data:', newError);
         toast.error('Failed to fetch updated table data');
