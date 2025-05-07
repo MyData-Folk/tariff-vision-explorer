@@ -1,40 +1,47 @@
 
-import { ChartData, SelectedPartner, DifferenceData } from "@/components/tariff-comparison/types";
+// Fonctions d'analyse pour les comparaisons de tarifs
 
-// Calculate differences between partners for analysis
-export const calculateDifferences = (
-  chartData: ChartData[],
-  selectedPartners: SelectedPartner[]
-): DifferenceData[] => {
-  if (!chartData.length || selectedPartners.length < 2) return [];
+// Types pour les données d'analyse
+export interface DifferenceData {
+  plan: string;
+  baselinePlan: string;
+  averageDifference: number;
+  percentDifference: string; // Pourcentage sous forme de chaîne avec '%'
+  isAbove: boolean;
+}
 
-  const firstPartner = `${selectedPartners[0].partnerName} - ${selectedPartners[0].planName}`;
+// Analyse les différences de tarif entre plans
+export const analyzeDifferences = (data: any[], baselinePlan: string): DifferenceData[] => {
+  if (!data || data.length === 0) return [];
+
+  const planNames = [...new Set(data.map(item => item.plan))].filter(p => p !== baselinePlan);
   
-  const differences: DifferenceData[] = selectedPartners.slice(1).map(partner => {
-    const currentPartner = `${partner.partnerName} - ${partner.planName}`;
+  return planNames.map(plan => {
+    const planData = data.filter(item => item.plan === plan);
+    const baselineData = data.filter(item => item.plan === baselinePlan);
     
-    // Calculate average difference
-    const avgDiff = chartData.reduce((sum, day) => {
-      return sum + (Number(day[currentPartner]) - Number(day[firstPartner]));
-    }, 0) / chartData.length;
-
-    // Calculate percentage difference
-    const avgFirstPartner = chartData.reduce((sum, day) => {
-      return sum + Number(day[firstPartner]);
-    }, 0) / chartData.length;
+    // Calcul de la différence moyenne
+    let totalDiff = 0;
+    let count = 0;
     
-    const percentDiff = (avgDiff / avgFirstPartner) * 100;
-
-    const isPositive = avgDiff > 0;
-
+    planData.forEach(pItem => {
+      const baseItem = baselineData.find(bItem => bItem.date === pItem.date);
+      if (baseItem && baseItem.price && pItem.price) {
+        totalDiff += (Number(pItem.price) - Number(baseItem.price));
+        count++;
+      }
+    });
+    
+    const avgDiff = count > 0 ? totalDiff / count : 0;
+    const baselineAvg = baselineData.reduce((sum, item) => sum + Number(item.price || 0), 0) / baselineData.length || 1;
+    const percentDiff = ((avgDiff / baselineAvg) * 100).toFixed(2) + '%';
+    
     return {
-      plan: currentPartner,
-      baselinePlan: firstPartner,
-      averageDifference: Math.abs(Math.round(avgDiff)),
-      percentDifference: Math.abs(percentDiff.toFixed(1)), // Convert to string with 1 decimal place
-      isAbove: isPositive,
+      plan,
+      baselinePlan,
+      averageDifference: avgDiff,
+      percentDifference: percentDiff,
+      isAbove: avgDiff > 0
     };
   });
-
-  return differences;
 };

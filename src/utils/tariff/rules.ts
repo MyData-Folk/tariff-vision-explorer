@@ -7,7 +7,7 @@ export interface PlanRule {
   plan_id: string;
   base_source: string;
   created_at?: string;
-  steps: any; // Accept any type for steps
+  steps: any; // Type plus spécifique à définir ultérieurement
 }
 
 // Récupère toutes les règles de plans de la base de données
