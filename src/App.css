@@ -1,42 +1,152 @@
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 1rem;
+  text-align: left;
 }
 
 .logo {
-  height: 6em;
-  padding: 1.5em;
+  height: 2.5em;
+  padding: 0.5em;
   will-change: filter;
   transition: filter 300ms;
 }
+
 .logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+  filter: drop-shadow(0 0 1em rgba(100, 108, 255, 0.8));
 }
+
 .logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+  filter: drop-shadow(0 0 1em rgba(97, 218, 251, 0.8));
 }
 
 .card {
-  padding: 2em;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s;
 }
 
-.read-the-docs {
-  color: #888;
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Power App style cards */
+.power-card {
+  border-radius: 8px;
+  border: 1px solid rgb(237, 235, 233);
+  box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.108);
+  background-color: white;
+  padding: 16px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.power-card:hover {
+  box-shadow: 0 3.2px 7.2px 0 rgba(0, 0, 0, 0.132), 0 0.6px 1.8px 0 rgba(0, 0, 0, 0.108);
+}
+
+/* Power App style headings */
+.power-heading {
+  font-size: 20px;
+  font-weight: 600;
+  color: #323130;
+  margin-bottom: 8px;
+}
+
+/* Power App style charts */
+.power-chart {
+  border-radius: 4px;
+  padding: 8px;
+  background-color: white;
+}
+
+/* Power App style KPI cards */
+.kpi-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132);
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0078d4;
+  margin-bottom: 4px;
+}
+
+.kpi-label {
+  font-size: 14px;
+  color: #605e5c;
+}
+
+/* Power App style buttons */
+.power-button {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.power-button:hover {
+  background-color: #106ebe;
+}
+
+/* Power App style table */
+.power-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.power-table th {
+  text-align: left;
+  padding: 8px 16px;
+  border-bottom: 1px solid #edebe9;
+  color: #605e5c;
+  font-weight: 600;
+}
+
+.power-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f2f1;
+}
+
+.power-table tr:hover {
+  background-color: #f3f2f1;
+}
+
+/* Power App style section */
+.power-section {
+  margin-bottom: 24px;
+}
+
+/* Power App style status indicators */
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.status-success {
+  background-color: #107c10;
+}
+
+.status-warning {
+  background-color: #ffaa44;
+}
+
+.status-error {
+  background-color: #d83b01;
 }

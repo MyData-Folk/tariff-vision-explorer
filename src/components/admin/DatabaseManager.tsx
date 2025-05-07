@@ -13,7 +13,7 @@ import { PartnerSelector } from "@/components/tariff-comparison/form/PartnerSele
 import { VisualizationSelector } from "@/components/tariff-comparison/form/VisualizationSelector";
 import { usePartnerPlans } from "@/components/tariff-comparison/form/usePartnerPlans";
 
-export function DatabaseManager({
+export const DatabaseManager = ({
   dateRange,
   setDateRange,
   selectedPartners,
@@ -24,17 +24,17 @@ export function DatabaseManager({
   isLoading,
   allPartners,
   allPlans
-}: ComparisonFormProps) {
+}: ComparisonFormProps) => {
   
   // Get partner plans using our custom hook
   const partnerPlans = usePartnerPlans(allPartners, allPlans);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Paramètres de comparaison</CardTitle>
+    <Card className="shadow-lg border-blue-100">
+      <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
+        <CardTitle className="text-blue-800">Base de données</CardTitle>
         <CardDescription>
-          Sélectionnez une période et des partenaires à comparer
+          Gérez vos partenaires et plans tarifaires
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -61,4 +61,7 @@ export function DatabaseManager({
       </CardContent>
     </Card>
   );
-}
+};
+
+// Export par défaut pour compatibilité
+export default DatabaseManager;

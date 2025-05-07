@@ -11,4 +11,17 @@ export const formatDataForLineChart = (data: any[]) => {
   }));
 };
 
-// Autres fonctions utilitaires pour le module Yield
+// Composant YieldCalculator pour exporter correctement
+export const YieldCalculator = () => {
+  return (
+    <div className="grid gap-6">
+      <h2 className="text-2xl font-semibold">Calculateur de Rendement</h2>
+      <p className="text-muted-foreground">
+        Utilisez l'outil de calcul pour analyser les rendements basés sur différentes stratégies tarifaires.
+      </p>
+    </div>
+  );
+};
+
+// Export par défaut pour compatibilité
+export default YieldCalculator;

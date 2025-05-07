@@ -64,14 +64,14 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				// Custom colors for Power App style
+				// Power App color palette
 				power: {
-					purple: '#9b87f5',
-					blue: '#0EA5E9',
-					darkGray: '#222222',
-					lightGray: '#F1F1F1',
-					orange: '#F97316',
-					red: '#ea384c'
+					purple: '#9b87f5',  // Main Power Apps purple
+					blue: '#0078D4',    // Microsoft blue
+					darkGray: '#323130', // Dark text
+					lightGray: '#F3F2F1', // Background gray
+					orange: '#F6503B',  // Accent color
+					red: '#D83B01'      // Error color
 				}
 			},
 			borderRadius: {
@@ -80,8 +80,8 @@ export default {
 				sm: 'calc(var(--radius) - 4px)'
 			},
 			boxShadow: {
-				'power': '0 10px 25px -5px rgba(155, 135, 245, 0.2), 0 8px 10px -6px rgba(155, 135, 245, 0.1)',
-				'power-lg': '0 20px 25px -5px rgba(155, 135, 245, 0.25), 0 8px 10px -6px rgba(155, 135, 245, 0.15)',
+				'power': '0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.108)',
+				'power-lg': '0 3.2px 7.2px 0 rgba(0, 0, 0, 0.132), 0 0.6px 1.8px 0 rgba(0, 0, 0, 0.108)',
 			},
 			keyframes: {
 				'accordion-down': {

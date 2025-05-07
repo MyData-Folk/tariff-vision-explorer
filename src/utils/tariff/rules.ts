@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Interface pour les règles de plan
 export interface PlanRule {
+  id?: string;
   plan_id: string;
   base_source: string;
-  steps: any[];
+  created_at?: string;
+  steps: any; // Accept any type for steps
 }
 
 // Récupère toutes les règles de plans de la base de données
