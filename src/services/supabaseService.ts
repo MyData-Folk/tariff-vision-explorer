@@ -63,6 +63,27 @@ export interface PartnerAdjustment {
   created_at: string;
 }
 
+export interface OccupancyRate {
+  id: string;
+  date: string;
+  rate: number;
+  created_at: string | null;
+}
+
+export interface CompetitorPrice {
+  id: string;
+  date: string;
+  price: number;
+  created_at: string | null;
+}
+
+export interface OptimizedPrice {
+  id: string;
+  date: string;
+  calculated_price: number;
+  created_at: string | null;
+}
+
 export async function fetchCategories(): Promise<Category[]> {
   try {
     const { data, error } = await supabase
@@ -177,5 +198,117 @@ export async function fetchPartnerAdjustments(): Promise<PartnerAdjustment[]> {
   } catch (error) {
     console.error('Error fetching partner adjustments:', error);
     return [];
+  }
+}
+
+// Nouvelles fonctions pour le module Yield
+
+export async function fetchOccupancyRates(startDate: string, endDate: string): Promise<OccupancyRate[]> {
+  try {
+    const { data, error } = await supabase
+      .from('occupancy_rates')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date');
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching occupancy rates:', error);
+    return [];
+  }
+}
+
+export async function fetchCompetitorPrices(startDate: string, endDate: string): Promise<CompetitorPrice[]> {
+  try {
+    const { data, error } = await supabase
+      .from('competitor_prices')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date');
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching competitor prices:', error);
+    return [];
+  }
+}
+
+export async function fetchOptimizedPrices(startDate: string, endDate: string): Promise<OptimizedPrice[]> {
+  try {
+    const { data, error } = await supabase
+      .from('optimized_prices')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date');
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching optimized prices:', error);
+    return [];
+  }
+}
+
+export async function upsertOccupancyRate(date: string, rate: number): Promise<OccupancyRate | null> {
+  try {
+    const { data, error } = await supabase
+      .from('occupancy_rates')
+      .upsert({ date, rate }, { onConflict: 'date' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error upserting occupancy rate:', error);
+    return null;
+  }
+}
+
+export async function upsertCompetitorPrice(date: string, price: number): Promise<CompetitorPrice | null> {
+  try {
+    const { data, error } = await supabase
+      .from('competitor_prices')
+      .upsert({ date, price }, { onConflict: 'date' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error upserting competitor price:', error);
+    return null;
+  }
+}
+
+export async function upsertOptimizedPrice(date: string, calculated_price: number): Promise<OptimizedPrice | null> {
+  try {
+    const { data, error } = await supabase
+      .from('optimized_prices')
+      .upsert({ date, calculated_price }, { onConflict: 'date' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error upserting optimized price:', error);
+    return null;
+  }
+}
+
+// Fonction utilitaire pour calculer le prix optimisé en fonction du taux d'occupation
+export function calculateOptimizedPrice(occupancyRate: number, competitorPrice: number): number {
+  if (occupancyRate >= 80) {
+    return competitorPrice * 0.95; // -5% → Demande forte
+  } else if (occupancyRate >= 60) {
+    return competitorPrice * 0.85; // -15% → Demande moyenne
+  } else {
+    return competitorPrice * 0.70; // -30% → Faible demande
   }
 }

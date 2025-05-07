@@ -10,6 +10,7 @@ import TariffCalculator from "@/pages/TariffCalculator";
 import TariffComparison from "@/pages/TariffComparison";
 import TariffAnalysis from "@/pages/TariffAnalysis";
 import Settings from "@/pages/Settings";
+import YieldManagement from "@/pages/YieldManagement";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,11 @@ const App = () => (
           <Route path="/analyses" element={
             <MainLayout>
               <TariffAnalysis />
+            </MainLayout>
+          } />
+          <Route path="/yield" element={
+            <MainLayout>
+              <YieldManagement />
             </MainLayout>
           } />
           <Route path="/parametres" element={

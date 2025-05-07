@@ -6,7 +6,8 @@ import {
   CalendarDays, 
   ChartBar, 
   ChartLine, 
-  Settings 
+  Settings,
+  TrendingUp
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -15,6 +16,7 @@ const Sidebar = () => {
     { name: "Calcul des tarifs", to: "/calcul", icon: CalendarDays },
     { name: "Comparaison", to: "/comparaison", icon: ChartBar },
     { name: "Analyses", to: "/analyses", icon: ChartLine },
+    { name: "Yield Management", to: "/yield", icon: TrendingUp },
     { name: "Paramètres", to: "/parametres", icon: Settings },
   ];
 

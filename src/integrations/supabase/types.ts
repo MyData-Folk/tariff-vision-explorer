@@ -65,6 +65,27 @@ export type Database = {
           },
         ]
       }
+      competitor_prices: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          price: number
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          price: number
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          price?: number
+        }
+        Relationships: []
+      }
       daily_base_rates: {
         Row: {
           created_at: string
@@ -83,6 +104,48 @@ export type Database = {
           date?: string
           ota_rate?: number
           travco_rate?: number
+        }
+        Relationships: []
+      }
+      occupancy_rates: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          rate: number
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          rate: number
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          rate?: number
+        }
+        Relationships: []
+      }
+      optimized_prices: {
+        Row: {
+          calculated_price: number
+          created_at: string | null
+          date: string
+          id: string
+        }
+        Insert: {
+          calculated_price: number
+          created_at?: string | null
+          date: string
+          id?: string
+        }
+        Update: {
+          calculated_price?: number
+          created_at?: string | null
+          date?: string
+          id?: string
         }
         Relationships: []
       }
