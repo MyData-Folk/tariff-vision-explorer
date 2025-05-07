@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { Json } from "@/integrations/supabase/types";
 
 // Interface pour les règles de plan
 export interface PlanRule {
@@ -7,7 +8,7 @@ export interface PlanRule {
   plan_id: string;
   base_source: string;
   created_at?: string;
-  steps: any[]; // Type plus spécifique pour les étapes
+  steps: any[]; // Type pour les étapes, adapté pour travailler avec Json
 }
 
 // Interface pour les règles de catégorie
@@ -45,7 +46,16 @@ export const getPlanRules = async (): Promise<PlanRule[]> => {
     return [];
   }
   
-  return planRulesData || [];
+  // Transformation des données pour s'assurer que steps est toujours un tableau
+  return (planRulesData || []).map(rule => ({
+    id: rule.id,
+    plan_id: rule.plan_id,
+    base_source: rule.base_source,
+    created_at: rule.created_at,
+    steps: Array.isArray(rule.steps) ? rule.steps : 
+           (typeof rule.steps === 'object' && rule.steps !== null) ? 
+           Object.values(rule.steps) : []
+  }));
 };
 
 // Récupère toutes les règles de catégorie de la base de données
