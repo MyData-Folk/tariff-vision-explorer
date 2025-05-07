@@ -45,3 +45,39 @@ export const analyzeDifferences = (data: any[], baselinePlan: string): Differenc
     };
   });
 };
+
+// Calculate differences between plans for chart data
+export const calculateDifferences = (
+  chartData: any[], 
+  selectedPartners: { partnerId: string; partnerName: string; planId: string; planName: string; }[]
+): DifferenceData[] => {
+  if (!chartData || chartData.length === 0 || selectedPartners.length <= 1) {
+    return [];
+  }
+  
+  // Use the first selected partner/plan as the baseline
+  const baselinePlan = `${selectedPartners[0].partnerName} - ${selectedPartners[0].planName}`;
+  
+  // Process data for analysis
+  const processedData = chartData.flatMap(dayData => {
+    const date = dayData.date;
+    const results = [];
+    
+    // Extract each plan's data for this day
+    selectedPartners.forEach(partner => {
+      const planName = `${partner.partnerName} - ${partner.planName}`;
+      if (dayData[planName] !== undefined) {
+        results.push({
+          date,
+          plan: planName,
+          price: dayData[planName]
+        });
+      }
+    });
+    
+    return results;
+  });
+  
+  // Use the analyzeDifferences function to calculate differentials
+  return analyzeDifferences(processedData, baselinePlan);
+};
