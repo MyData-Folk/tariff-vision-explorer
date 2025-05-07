@@ -3,3 +3,5 @@
 export * from './transformers';
 export * from './analysis';
 export * from './rules';
+export * from './calculator';
+

@@ -4,9 +4,16 @@ import { DateRange } from "react-day-picker";
 import { DailyRate } from "@/services/types";
 import { ChartData, SelectedPartner } from "@/components/tariff-comparison/types";
 import { supabase } from "@/integrations/supabase/client";
-import { getPlanRules } from "./rules";
+import { 
+  getPlanRules, 
+  getCategoryRules,
+  applyCategoryRules,
+  applyPlanRules,
+  PlanRule,
+  CategoryRule
+} from "./rules";
 
-// Transform data for chart
+// Transforme les données pour le graphique
 export const transformDataForChart = async (
   baseRates: DailyRate[], 
   dateRange: DateRange, 
@@ -16,8 +23,9 @@ export const transformDataForChart = async (
     return [];
   }
 
-  // Récupérer les règles de plan depuis la base de données
+  // Récupérer les règles de plan et de catégorie depuis la base de données
   const planRulesData = await getPlanRules();
+  const categoryRulesData = await getCategoryRules();
   
   const data: ChartData[] = [];
   
@@ -30,41 +38,52 @@ export const transformDataForChart = async (
     });
   });
   
-  // Règles par défaut au cas où les règles ne sont pas trouvées dans la base de données
-  const defaultPlanRules: {[key: string]: { source: string, multiplier: number, offset: number }} = {
+  // Créer un mappage des règles de plan par ID de plan
+  const planRulesMap = new Map<string, PlanRule>();
+  planRulesData.forEach(rule => {
+    planRulesMap.set(rule.plan_id, rule);
+  });
+  
+  // Créer un mappage des règles de catégorie par ID de catégorie
+  const categoryRulesMap = new Map<string, CategoryRule>();
+  categoryRulesData.forEach(rule => {
+    categoryRulesMap.set(rule.category_id, rule);
+  });
+  
+  // Règles par défaut pour les plans standard
+  const defaultPlanRules: {[key: string]: { source: string, steps: any[] }} = {
     // Plans standard basés sur OTA-RO-FLEX
-    "ota-ro-flex": { source: "ota_rate", multiplier: 1.00, offset: 0 },
-    "ota-ro-flex-net": { source: "ota_rate", multiplier: 0.85, offset: 0 }, // Commission à 15%
-    "ota-ro-nrf": { source: "ota_rate", multiplier: 1.15, offset: 0 }, // +15% pour non-remboursable
-    "ota-ro-nrf-net": { source: "ota_rate", multiplier: 0.98, offset: 0 }, // NRF avec commission
+    "ota-ro-flex": { 
+      source: "ota_rate", 
+      steps: [{ type: 'multiply', value: '1.0' }] 
+    },
+    "ota-ro-flex-net": { 
+      source: "ota_rate", 
+      steps: [{ type: 'multiply', value: '0.85' }] 
+    },
+    "ota-ro-nrf": { 
+      source: "ota_rate", 
+      steps: [{ type: 'multiply', value: '1.15' }] 
+    },
+    "ota-ro-nrf-net": { 
+      source: "ota_rate", 
+      steps: [{ type: 'multiply', value: '0.98' }] 
+    },
     
     // Plans TRAVCO basés sur TRAVCO-BB-FLEX-NET
-    "travco": { source: "travco_rate", multiplier: 1.00, offset: 0 },
-    "travco-bb-flex-net": { source: "travco_rate", multiplier: 1.00, offset: 0 },
-    "travco-bb-nrf-net": { source: "travco_rate", multiplier: 1.15, offset: 0 }, // +15% pour non-remboursable
+    "travco": { 
+      source: "travco_rate", 
+      steps: [{ type: 'multiply', value: '1.0' }] 
+    },
+    "travco-bb-flex-net": { 
+      source: "travco_rate", 
+      steps: [{ type: 'multiply', value: '1.0' }] 
+    },
+    "travco-bb-nrf-net": { 
+      source: "travco_rate", 
+      steps: [{ type: 'multiply', value: '1.15' }] 
+    },
   };
-  
-  // Créer un mappage des règles de plan par ID de plan
-  const planRulesMap = new Map();
-  planRulesData?.forEach(rule => {
-    const steps = rule.steps as any[];
-    // Extraire les multiplicateurs et offsets des étapes
-    let multiplier = 1.0;
-    let offset = 0;
-    
-    if (steps && Array.isArray(steps)) {
-      steps.forEach(step => {
-        if (step.type === 'multiply') multiplier *= parseFloat(step.value);
-        if (step.type === 'add') offset += parseFloat(step.value);
-      });
-    }
-    
-    planRulesMap.set(rule.plan_id, {
-      source: rule.base_source,
-      multiplier,
-      offset
-    });
-  });
   
   // Pour chaque jour dans la plage de dates
   let currentDate = new Date(dateRange.from);
@@ -84,29 +103,49 @@ export const transformDataForChart = async (
         const isTravco = partnerData.partnerName.toLowerCase().includes('travco');
         
         // Chercher les règles spécifiques pour ce plan
-        let rule = { source: "ota_rate", multiplier: 1, offset: 0 };
+        let planRule: PlanRule | null = null;
         
         // D'abord, essayer d'utiliser les règles de la base de données
         if (planRulesMap.has(partnerData.planId)) {
-          rule = planRulesMap.get(partnerData.planId);
+          planRule = planRulesMap.get(partnerData.planId)!;
         } else {
           // Sinon, utiliser les règles codées en dur
-          for (const [planKey, planRule] of Object.entries(defaultPlanRules)) {
+          for (const [planKey, defaultRule] of Object.entries(defaultPlanRules)) {
             if (planCode.includes(planKey)) {
-              rule = planRule;
+              planRule = {
+                plan_id: partnerData.planId,
+                base_source: defaultRule.source,
+                steps: defaultRule.steps
+              };
               break;
             }
           }
           
           // Si c'est TRAVCO mais qu'on n'a pas trouvé de règle spécifique
-          if (isTravco && rule.source !== "travco_rate") {
-            rule = defaultPlanRules["travco-bb-flex-net"];
+          if (isTravco && (!planRule || planRule.base_source !== "travco_rate")) {
+            planRule = {
+              plan_id: partnerData.planId,
+              base_source: "travco_rate",
+              steps: defaultPlanRules["travco-bb-flex-net"].steps
+            };
+          }
+          
+          // Si on n'a toujours pas de règle, utiliser OTA-RO-FLEX par défaut
+          if (!planRule) {
+            planRule = {
+              plan_id: partnerData.planId,
+              base_source: "ota_rate",
+              steps: defaultPlanRules["ota-ro-flex"].steps
+            };
           }
         }
         
-        // Appliquer la règle
-        const baseRate = rule.source === "travco_rate" ? rates.travco_rate : rates.ota_rate;
-        const calculatedRate = (Number(baseRate) * rule.multiplier) + rule.offset;
+        // Déterminer le tarif de base à utiliser
+        const baseSource = planRule?.base_source || "ota_rate";
+        const baseRate = baseSource === "travco_rate" ? rates.travco_rate : rates.ota_rate;
+        
+        // Appliquer les règles du plan
+        const calculatedRate = applyPlanRules(Number(baseRate), planRule!);
         
         const displayName = `${partnerData.partnerName} - ${partnerData.planName}`;
         entry[displayName] = Math.round(calculatedRate);
@@ -122,30 +161,45 @@ export const transformDataForChart = async (
         const planCode = partnerData.planName.toLowerCase();
         const isTravco = partnerData.partnerName.toLowerCase().includes('travco');
         
-        // Chercher les règles spécifiques pour ce plan
-        let rule = { source: "ota_rate", multiplier: 1, offset: 0 };
+        // Chercher les règles spécifiques pour ce plan (même logique que ci-dessus)
+        let planRule: PlanRule | null = null;
         
-        // D'abord, essayer d'utiliser les règles de la base de données
         if (planRulesMap.has(partnerData.planId)) {
-          rule = planRulesMap.get(partnerData.planId);
+          planRule = planRulesMap.get(partnerData.planId)!;
         } else {
-          // Sinon, utiliser les règles codées en dur
-          for (const [planKey, planRule] of Object.entries(defaultPlanRules)) {
+          for (const [planKey, defaultRule] of Object.entries(defaultPlanRules)) {
             if (planCode.includes(planKey)) {
-              rule = planRule;
+              planRule = {
+                plan_id: partnerData.planId,
+                base_source: defaultRule.source,
+                steps: defaultRule.steps
+              };
               break;
             }
           }
           
-          // Si c'est TRAVCO mais qu'on n'a pas trouvé de règle spécifique
-          if (isTravco && rule.source !== "travco_rate") {
-            rule = defaultPlanRules["travco-bb-flex-net"];
+          if (isTravco && (!planRule || planRule.base_source !== "travco_rate")) {
+            planRule = {
+              plan_id: partnerData.planId,
+              base_source: "travco_rate",
+              steps: defaultPlanRules["travco-bb-flex-net"].steps
+            };
+          }
+          
+          if (!planRule) {
+            planRule = {
+              plan_id: partnerData.planId,
+              base_source: "ota_rate",
+              steps: defaultPlanRules["ota-ro-flex"].steps
+            };
           }
         }
         
         // Pour les estimations, on applique un taux légèrement différent pour TRAVCO
         const estimatedBaseRate = isTravco ? baseRate * 0.9 : baseRate;
-        const calculatedRate = (estimatedBaseRate * rule.multiplier) + rule.offset;
+        
+        // Appliquer les règles du plan
+        const calculatedRate = applyPlanRules(estimatedBaseRate, planRule!);
         
         const displayName = `${partnerData.partnerName} - ${partnerData.planName}`;
         entry[displayName] = Math.round(calculatedRate);
@@ -159,4 +213,42 @@ export const transformDataForChart = async (
   }
   
   return data;
+};
+
+// Calcule le tarif pour une catégorie de chambre selon le tarif de référence Double Classique
+export const calculateCategoryRate = (baseRate: number, categoryId: string, referenceId: string, categoryRules: CategoryRule[]): number => {
+  // Si la catégorie demandée est la référence, on retourne le tarif de base
+  if (categoryId === referenceId) {
+    return baseRate;
+  }
+  
+  // Trouver les règles pour la catégorie demandée
+  const categoryRule = categoryRules.find(rule => rule.category_id === categoryId);
+  
+  if (!categoryRule) {
+    console.warn(`Aucune règle trouvée pour la catégorie ${categoryId}`);
+    return baseRate;
+  }
+  
+  // Appliquer les règles de la catégorie
+  return applyCategoryRules(baseRate, categoryRule);
+};
+
+// Calcule le tarif pour un plan tarifaire selon le tarif de référence OTA-RO-FLEX
+export const calculatePlanRate = (baseRate: number, planId: string, referencePlanId: string, planRules: PlanRule[]): number => {
+  // Si le plan demandé est la référence, on retourne le tarif de base
+  if (planId === referencePlanId) {
+    return baseRate;
+  }
+  
+  // Trouver les règles pour le plan demandé
+  const planRule = planRules.find(rule => rule.plan_id === planId);
+  
+  if (!planRule) {
+    console.warn(`Aucune règle trouvée pour le plan ${planId}`);
+    return baseRate;
+  }
+  
+  // Appliquer les règles du plan
+  return applyPlanRules(baseRate, planRule);
 };
