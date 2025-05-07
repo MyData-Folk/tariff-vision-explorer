@@ -1,488 +1,377 @@
-import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getTables } from "@/services/baseService";
-import { supabase } from "@/integrations/supabase/client";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import {
-  ArrowUpCircle,
-  CheckCircle,
-  Database,
-  Download,
-  Loader2,
-  RefreshCw,
-  Table as TableIcon,
-  UploadCloud,
-  XCircle,
-} from "lucide-react";
-import { toast } from "sonner";
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
-// Type for the structure of a table
-interface TableStructure {
+interface TableSchema {
   name: string;
-  columns: { name: string; type: string; }[];
+  columns: { name: string; type: string }[];
 }
 
-const DatabaseManager: React.FC = () => {
-  const [tables, setTables] = useState<string[]>([]);
-  const [selectedTable, setSelectedTable] = useState<string>("");
+const DatabaseManager = () => {
+  const [tables, setTables] = useState<TableSchema[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [tableData, setTableData] = useState<any[]>([]);
-  const [tableStructure, setTableStructure] = useState<TableStructure | null>(null);
-  const [newRowData, setNewRowData] = useState<{[key: string]: any}>({});
-  const [loading, setLoading] = useState<boolean>(false);
-  const [sqlQuery, setSqlQuery] = useState<string>("");
-  const [sqlResult, setSqlResult] = useState<any>(null);
-  const [editingRows, setEditingRows] = useState<{[key: string]: boolean}>({});
+  const [columnTypes, setColumnTypes] = useState<{ [column: string]: string }>({});
+  const [newRowData, setNewRowData] = useState<{ [column: string]: any }>({});
+  const [editRowId, setEditRowId] = useState<any>(null);
+  const [editRowData, setEditRowData] = useState<{ [column: string]: any }>({});
+  const [loading, setLoading] = useState(true);
 
-  // Récupérer la liste des tables
   useEffect(() => {
     const fetchTables = async () => {
+      setLoading(true);
       try {
-        const tables = await getTables();
-        setTables(tables);
+        // Fetch all tables in the database
+        const { data, error } = await supabase.from('pg_tables').select('*').ilike('schemaname', 'public');
+
+        if (error) {
+          console.error('Error fetching tables:', error);
+          toast.error('Failed to fetch tables');
+          return;
+        }
+
+        // Extract table names
+        const tableNames = data.map((table: any) => table.tablename);
+
+        // Fetch schema for each table
+        const tableSchemas = await Promise.all(
+          tableNames.map(async (tableName: string) => {
+            const { data: columns, error: columnError } = await supabase.from('pg_columns').select('*').ilike('tablename', tableName).ilike('schemaname', 'public');
+
+            if (columnError) {
+              console.error(`Error fetching columns for table ${tableName}:`, columnError);
+              return null;
+            }
+
+            // Extract column names and types
+            const tableSchema: TableSchema = {
+              name: tableName,
+              columns: columns.map((column: any) => ({ name: column.columnname, type: column.udt_name })),
+            };
+
+            return tableSchema;
+          })
+        );
+
+        // Filter out tables with errors
+        const validTableSchemas = tableSchemas.filter((schema) => schema !== null) as TableSchema[];
+
+        setTables(validTableSchemas);
       } catch (error) {
-        console.error("Erreur lors de la récupération des tables:", error);
-        toast.error("Impossible de récupérer la liste des tables");
+        console.error('Error fetching tables:', error);
+        toast.error('Failed to fetch tables');
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchTables();
   }, []);
 
-  // Récupérer les données d'une table
-  const fetchTableData = async (tableName: string) => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from(tableName as any)
-        .select('*');
-      
-      if (error) throw error;
-      
-      setTableData(data || []);
-      
-      // Récupérer la structure de la table
-      const structure: TableStructure = {
-        name: tableName,
-        columns: []
-      };
-      
-      if (data && data.length > 0) {
-        const firstRow = data[0];
-        for (const key in firstRow) {
-          structure.columns.push({
-            name: key,
-            type: typeof firstRow[key]
-          });
+  useEffect(() => {
+    const fetchTableData = async () => {
+      if (!selectedTable) return;
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.from(selectedTable).select('*');
+
+        if (error) {
+          console.error('Error fetching table data:', error);
+          toast.error('Failed to fetch table data');
+          return;
         }
+
+        setTableData(data);
+      } catch (error) {
+        console.error('Error fetching table data:', error);
+        toast.error('Failed to fetch table data');
+      } finally {
+        setLoading(false);
       }
-      
-      setTableStructure(structure);
-      
-      // Réinitialiser le formulaire d'ajout
-      const initialData: {[key: string]: any} = {};
-      structure.columns.forEach(col => {
-        initialData[col.name] = '';
-      });
-      setNewRowData(initialData);
-      
-    } catch (error) {
-      console.error(`Erreur lors de la récupération des données de ${tableName}:`, error);
-      toast.error(`Impossible de récupérer les données de ${tableName}`);
-    } finally {
-      setLoading(false);
+    };
+
+    fetchTableData();
+  }, [selectedTable]);
+
+  useEffect(() => {
+    if (selectedTable) {
+      const selectedTableSchema = tables.find((table) => table.name === selectedTable);
+      if (selectedTableSchema) {
+        const initialColumnTypes: { [column: string]: string } = {};
+        selectedTableSchema.columns.forEach((column) => {
+          initialColumnTypes[column.name] = column.type;
+        });
+        setColumnTypes(initialColumnTypes);
+
+        // Initialize new row data
+        const initialNewRowData: { [column: string]: any } = {};
+        selectedTableSchema.columns.forEach((column) => {
+          initialNewRowData[column.name] = getDefaultValueForType(column.type);
+        });
+        setNewRowData(initialNewRowData);
+      }
+    }
+  }, [selectedTable, tables]);
+
+  const getDefaultValueForType = (type: string): any => {
+    switch (type) {
+      case 'text':
+      case 'varchar':
+        return '';
+      case 'integer':
+      case 'bigint':
+        return 0;
+      case 'boolean':
+        return false;
+      case 'timestamp':
+        return new Date().toISOString();
+      default:
+        return null;
     }
   };
 
-  // Sélectionner une table
   const handleTableSelect = (tableName: string) => {
     setSelectedTable(tableName);
-    fetchTableData(tableName);
+    setEditRowId(null);
   };
 
-  // Ajouter une nouvelle ligne
-  const handleAddRow = async () => {
-    if (!selectedTable || !tableStructure) return;
-    
+  const handleInputChange = (column: string, value: any, isNewRow: boolean = true) => {
+    if (isNewRow) {
+      setNewRowData({ ...newRowData, [column]: value });
+    } else {
+      setEditRowData({ ...editRowData, [column]: value });
+    }
+  };
+
+  const handleInsertOrUpdateData = async (tableName: string, rowData: any) => {
     setLoading(true);
     try {
-      // Ne pas inclure les champs vides ou les identifiants générés automatiquement
-      const dataToInsert: {[key: string]: any} = {};
-      for (const key in newRowData) {
-        if (newRowData[key] !== '' && key !== 'id' && key !== 'created_at') {
-          dataToInsert[key] = newRowData[key];
-        }
-      }
-      
+      // Correction du problème de type en utilisant un cast explicite
       const { data, error } = await supabase
-        .from(selectedTable as any)
-        .insert([dataToInsert]);
-      
-      if (error) throw error;
-      
-      toast.success("Données ajoutées avec succès");
-      fetchTableData(selectedTable);
-      
+        .from(tableName)
+        .upsert(rowData as any);
+
+      if (error) {
+        console.error('Error inserting/updating data:', error);
+        toast.error('Failed to insert/update data');
+        return;
+      }
+
+      // Refresh table data
+      const { data: newData, error: newError } = await supabase.from(tableName).select('*');
+      if (newError) {
+        console.error('Error fetching updated table data:', newError);
+        toast.error('Failed to fetch updated table data');
+        return;
+      }
+      setTableData(newData);
+
+      // Reset new row data
+      const initialNewRowData: { [column: string]: any } = {};
+      const selectedTableSchema = tables.find((table) => table.name === tableName);
+      if (selectedTableSchema) {
+        selectedTableSchema.columns.forEach((column) => {
+          initialNewRowData[column.name] = getDefaultValueForType(column.type);
+        });
+        setNewRowData(initialNewRowData);
+      }
+
+      toast.success('Data inserted/updated successfully');
     } catch (error) {
-      console.error("Erreur lors de l'ajout de données:", error);
-      toast.error("Impossible d'ajouter les données");
+      console.error('Error inserting/updating data:', error);
+      toast.error('Failed to insert/update data');
     } finally {
       setLoading(false);
     }
   };
 
-  // Gérer l'édition des lignes
-  const toggleEditRow = (rowId: string) => {
-    setEditingRows(prev => ({
-      ...prev,
-      [rowId]: !prev[rowId]
-    }));
-  };
-
-  // Mettre à jour une ligne
-  const handleUpdateRow = async (rowId: string, rowData: any) => {
-    if (!selectedTable) return;
-    
+  const handleDeleteData = async (tableName: string, id: any) => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from(selectedTable as any)
-        .update(rowData)
-        .eq('id', rowId);
-      
-      if (error) throw error;
-      
-      toggleEditRow(rowId);
-      toast.success("Données mises à jour avec succès");
-      fetchTableData(selectedTable);
-      
+      const { error } = await supabase.from(tableName).delete().match({ id });
+
+      if (error) {
+        console.error('Error deleting data:', error);
+        toast.error('Failed to delete data');
+        return;
+      }
+
+      // Refresh table data
+      const { data: newData, error: newError } = await supabase.from(tableName).select('*');
+      if (newError) {
+        console.error('Error fetching updated table data:', newError);
+        toast.error('Failed to fetch updated table data');
+        return;
+      }
+      setTableData(newData);
+
+      toast.success('Data deleted successfully');
     } catch (error) {
-      console.error("Erreur lors de la mise à jour des données:", error);
-      toast.error("Impossible de mettre à jour les données");
+      console.error('Error deleting data:', error);
+      toast.error('Failed to delete data');
     } finally {
       setLoading(false);
     }
   };
 
-  // Supprimer une ligne
-  const handleDeleteRow = async (rowId: string) => {
-    if (!selectedTable) return;
-    
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cette ligne ?")) return;
-    
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from(selectedTable as any)
-        .delete()
-        .eq('id', rowId);
-      
-      if (error) throw error;
-      
-      toast.success("Données supprimées avec succès");
-      fetchTableData(selectedTable);
-      
-    } catch (error) {
-      console.error("Erreur lors de la suppression des données:", error);
-      toast.error("Impossible de supprimer les données");
-    } finally {
-      setLoading(false);
-    }
+  const handleEditRow = (row: any) => {
+    setEditRowId(row.id);
+    setEditRowData(row);
   };
 
-  // Fix the string argument type issue (around line 205)
-  // Using a type assertion to resolve the TS2345 error
-  const handleValueChange = (
-    tableName: string,
-    rowIndex: number,
-    columnName: string,
-    value: string | number | boolean | null
-  ) => {
-    if (!tableData[rowIndex]) return;
-    
-    const newData = [...tableData];
-    newData[rowIndex] = {
-      ...newData[rowIndex],
-      [columnName]: value
-    };
-    setTableData(newData);
-  };
-
-  // Exécuter une requête SQL personnalisée
-  const handleExecuteQuery = async () => {
-    if (!sqlQuery.trim()) return;
-    
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('execute_sql', { query: sqlQuery });
-      
-      if (error) throw error;
-      
-      setSqlResult(data);
-      toast.success("Requête exécutée avec succès");
-      
-    } catch (error) {
-      console.error("Erreur lors de l'exécution de la requête SQL:", error);
-      toast.error("Impossible d'exécuter la requête SQL");
-      setSqlResult({ error: error });
-    } finally {
-      setLoading(false);
-    }
+  const handleCancelEdit = () => {
+    setEditRowId(null);
+    setEditRowData({});
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Gestion de la Base de Données</h1>
-      
-      <Tabs defaultValue="tables">
-        <TabsList className="grid w-full md:w-auto grid-cols-2 md:grid-cols-3">
-          <TabsTrigger value="tables">Tables</TabsTrigger>
-          <TabsTrigger value="sql">Requêtes SQL</TabsTrigger>
-          <TabsTrigger value="export">Export/Import</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="tables" className="space-y-4">
+    <div className="space-y-6 animate-fade-in">
+      <h1 className="text-2xl font-bold tracking-tight">Database Manager</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Select Table</CardTitle>
+          <CardDescription>Choose a table to view and manage its data.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select onValueChange={handleTableSelect}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a table" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Tables</SelectLabel>
+                {tables.map((table) => (
+                  <SelectItem key={table.name} value={table.name}>
+                    {table.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {selectedTable && (
+        <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Sélectionner une table</CardTitle>
-              <CardDescription>
-                Choisissez une table pour afficher et modifier ses données
-              </CardDescription>
+              <CardTitle>Table Data: {selectedTable}</CardTitle>
+              <CardDescription>View, edit, and manage data in the selected table.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4">
-                <Select 
-                  value={selectedTable} 
-                  onValueChange={handleTableSelect}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionnez une table" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tables.map(table => (
-                      <SelectItem key={table} value={table}>
-                        {table}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {loading ? (
+                <p>Loading data...</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-muted">
+                      <tr>
+                        {tables.find((table) => table.name === selectedTable)?.columns.map((column) => (
+                          <th key={column.name} className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            {column.name}
+                          </th>
+                        ))}
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {tableData.map((row) => (
+                        <tr key={row.id}>
+                          {tables.find((table) => table.name === selectedTable)?.columns.map((column) => (
+                            <td key={column.name} className="px-6 py-4 whitespace-nowrap">
+                              {editRowId === row.id ? (
+                                <Input
+                                  type="text"
+                                  value={editRowData[column.name] || ''}
+                                  onChange={(e) => handleInputChange(column.name, e.target.value, false)}
+                                />
+                              ) : (
+                                <div className="text-sm text-gray-900">{row[column.name]}</div>
+                              )}
+                            </td>
+                          ))}
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            {editRowId === row.id ? (
+                              <div className="flex space-x-2">
+                                <Button size="sm" onClick={() => handleInsertOrUpdateData(selectedTable, editRowData)}>
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex space-x-2">
+                                <Button size="sm" variant="outline" onClick={() => handleEditRow(row)}>
+                                  Edit
+                                </Button>
+                                <Button size="sm" variant="destructive" onClick={() => handleDeleteData(selectedTable, row.id)}>
+                                  Delete
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
-          
-          {selectedTable && tableStructure && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Ajouter une ligne à {selectedTable}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {tableStructure.columns
-                    .filter(col => col.name !== 'id' && col.name !== 'created_at')
-                    .map(col => (
-                      <div key={col.name} className="space-y-2">
-                        <Label htmlFor={`new-${col.name}`}>{col.name}</Label>
-                        <Input
-                          id={`new-${col.name}`}
-                          value={newRowData[col.name] || ''}
-                          onChange={(e) => setNewRowData({
-                            ...newRowData,
-                            [col.name]: e.target.value
-                          })}
-                          type={col.type === 'number' ? 'number' : 'text'}
-                        />
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button onClick={handleAddRow} disabled={loading}>
-                  {loading ? "Ajout..." : "Ajouter"}
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
-          
-          {selectedTable && tableData.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Données de la table {selectedTable}</CardTitle>
-                <CardDescription>
-                  {tableData.length} lignes trouvées
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[500px]">
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-secondary">
-                          <th className="p-2 text-left">Actions</th>
-                          {tableStructure?.columns.map(col => (
-                            <th key={col.name} className="p-2 text-left">{col.name}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tableData.map((row, index) => (
-                          <tr key={index} className="border-b border-border hover:bg-muted/50">
-                            <td className="p-2">
-                              <div className="flex space-x-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => toggleEditRow(row.id)}
-                                >
-                                  {editingRows[row.id] ? "Annuler" : "Éditer"}
-                                </Button>
-                                {editingRows[row.id] ? (
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    onClick={() => handleUpdateRow(row.id, row)}
-                                  >
-                                    Enregistrer
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => handleDeleteRow(row.id)}
-                                  >
-                                    Supprimer
-                                  </Button>
-                                )}
-                              </div>
-                            </td>
-                            {tableStructure?.columns.map(col => (
-                              <td key={col.name} className="p-2">
-                                {editingRows[row.id] && col.name !== 'id' && col.name !== 'created_at' ? (
-                                  <Input
-                                    value={row[col.name] || ''}
-                                    onChange={(e) => {
-                                      handleValueChange(selectedTable, index, col.name, e.target.value);
-                                    }}
-                                    type={col.type === 'number' ? 'number' : 'text'}
-                                    className="h-8 w-full"
-                                  />
-                                ) : (
-                                  <span>{row[col.name]}</span>
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="sql">
+
           <Card>
             <CardHeader>
-              <CardTitle>Requêtes SQL personnalisées</CardTitle>
-              <CardDescription>
-                Exécutez des requêtes SQL personnalisées sur la base de données
-              </CardDescription>
+              <CardTitle>Insert New Row</CardTitle>
+              <CardDescription>Add a new row to the table.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <Textarea
-                  value={sqlQuery}
-                  onChange={(e) => setSqlQuery(e.target.value)}
-                  rows={8}
-                  placeholder="Entrez votre requête SQL ici..."
-                  className="font-mono"
-                />
+                {tables.find((table) => table.name === selectedTable)?.columns.map((column) => (
+                  <div key={column.name} className="space-y-2">
+                    <Label htmlFor={column.name}>{column.name}</Label>
+                    <Input
+                      type="text"
+                      id={column.name}
+                      value={newRowData[column.name] || ''}
+                      onChange={(e) => handleInputChange(column.name, e.target.value)}
+                    />
+                  </div>
+                ))}
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleExecuteQuery} disabled={loading || !sqlQuery.trim()}>
-                {loading ? "Exécution..." : "Exécuter"}
+              <Button className="w-full" onClick={() => handleInsertOrUpdateData(selectedTable, newRowData)}>
+                Insert New Row
               </Button>
             </CardFooter>
           </Card>
-          
-          {sqlResult && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Résultat de la requête</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <pre className="bg-muted p-4 rounded-md overflow-x-auto font-mono text-sm">
-                  {JSON.stringify(sqlResult, null, 2)}
-                </pre>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="export">
-          <Card>
-            <CardHeader>
-              <CardTitle>Export et Import de données</CardTitle>
-              <CardDescription>
-                Exportez ou importez des données depuis ou vers la base de données
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Export de données</h3>
-                  <div className="grid gap-4">
-                    <Select disabled={tables.length === 0}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez une table à exporter" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tables.map(table => (
-                          <SelectItem key={table} value={table}>
-                            {table}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="flex space-x-2">
-                      <Button className="flex-1">Exporter en CSV</Button>
-                      <Button className="flex-1">Exporter en JSON</Button>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Import de données</h3>
-                  <div className="grid gap-4">
-                    <Select disabled={tables.length === 0}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez une table pour l'import" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tables.map(table => (
-                          <SelectItem key={table} value={table}>
-                            {table}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input type="file" />
-                    <Button disabled={true}>Importer des données</Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
 };

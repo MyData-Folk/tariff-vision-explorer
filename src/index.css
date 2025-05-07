@@ -14,10 +14,12 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 221.2 83.2% 53.3%;
+    /* Power App primary color - Purple */
+    --primary: 256 80% 75%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 96.1%;
+    /* Secondary bright blue */
+    --secondary: 200 95% 45%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
     --muted: 210 40% 96.1%;
@@ -26,14 +28,18 @@
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
+    /* Red for destructive actions */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
+
+    /* Bright orange for accents */
+    --accent-orange: 25 95% 53%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
     --sidebar-background: 220 20% 97%;
     --sidebar-foreground: 215 25% 27%;
@@ -55,10 +61,11 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 217.2 91.2% 59.8%;
+    /* Power App primary color in dark mode */
+    --primary: 256 80% 75%;
     --primary-foreground: 222.2 47.4% 11.2%;
 
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 200 95% 45%;
     --secondary-foreground: 210 40% 98%;
 
     --muted: 217.2 32.6% 17.5%;
@@ -88,11 +95,38 @@
 @layer base {
   * {
     @apply border-border;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
   }
 
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer components {
+  .power-card {
+    @apply rounded-xl border shadow-lg backdrop-blur-sm bg-white/60 hover:shadow-xl transition-all;
+  }
+  
+  .power-button {
+    @apply rounded-full font-medium shadow-md hover:shadow-lg transition-all;
+  }
+  
+  .power-gradient {
+    @apply bg-gradient-to-br from-primary via-primary/90 to-secondary;
+  }
+  
+  .glass-effect {
+    @apply backdrop-blur-sm bg-white/20 border border-white/30 shadow-lg;
+  }
+  
+  .btn-3d {
+    @apply relative shadow-xl active:translate-y-1 active:shadow-md transition-all;
   }
 }
 
@@ -109,5 +143,23 @@
   }
   .tariff-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-primary/50;
+  }
+  
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .animate-slide-in {
+    animation: slideIn 0.5s ease-out forwards;
+  }
+  
+  @keyframes slideIn {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
   }
 }

@@ -26,11 +26,18 @@ export const transformDataForChart = (
   });
   
   // Base rates for each plan
-  const planMultipliers: {[key: string]: number} = {
-    "standard": 1.00,
-    "flexible": 1.15,
-    "discount": 0.90,
-    "premium": 1.25
+  // Règles mises à jour pour différencier les partenaires TRAVCO des autres
+  const planRules: {[key: string]: { source: string, multiplier: number, offset: number }} = {
+    // Plans standard basés sur OTA-RO-FLEX
+    "ota-ro-flex": { source: "ota_rate", multiplier: 1.00, offset: 0 },
+    "ota-ro-flex-net": { source: "ota_rate", multiplier: 0.85, offset: 0 }, // Commission à 15%
+    "ota-ro-nrf": { source: "ota_rate", multiplier: 1.15, offset: 0 }, // +15% pour non-remboursable
+    "ota-ro-nrf-net": { source: "ota_rate", multiplier: 0.98, offset: 0 }, // NRF avec commission
+    
+    // Plans TRAVCO basés sur TRAVCO-BB-FLEX-NET
+    "travco": { source: "travco_rate", multiplier: 1.00, offset: 0 },
+    "travco-bb-flex-net": { source: "travco_rate", multiplier: 1.00, offset: 0 },
+    "travco-bb-nrf-net": { source: "travco_rate", multiplier: 1.15, offset: 0 }, // +15% pour non-remboursable
   };
   
   // For each day in date range
@@ -47,23 +54,31 @@ export const transformDataForChart = (
     if (rates) {
       // Calculate rates for each selected partner
       selectedPartners.forEach(partnerData => {
-        // Use ota_rate by default
-        const baseRate = rates.ota_rate;
-        
-        // Determine multiplier based on plan code (simplified)
         const planCode = partnerData.planName.toLowerCase();
-        let multiplier = 1;
+        const isTravco = partnerData.partnerName.toLowerCase().includes('travco');
         
-        for (const [planKey, planValue] of Object.entries(planMultipliers)) {
+        // Déterminer la règle à appliquer
+        let rule = { source: "ota_rate", multiplier: 1, offset: 0 };
+        
+        // Chercher la règle spécifique pour ce plan
+        for (const [planKey, planRule] of Object.entries(planRules)) {
           if (planCode.includes(planKey)) {
-            multiplier = planValue;
+            rule = planRule;
             break;
           }
         }
         
+        // Si c'est TRAVCO mais qu'on n'a pas trouvé de règle spécifique
+        if (isTravco && rule.source !== "travco_rate") {
+          rule = planRules["travco-bb-flex-net"];
+        }
+        
+        // Appliquer la règle
+        const baseRate = rule.source === "travco_rate" ? rates.travco_rate : rates.ota_rate;
+        const calculatedRate = (Number(baseRate) * rule.multiplier) + rule.offset;
+        
         const displayName = `${partnerData.partnerName} - ${partnerData.planName}`;
-        // Convert to number and round
-        entry[displayName] = Math.round(Number(baseRate) * multiplier);
+        entry[displayName] = Math.round(calculatedRate);
       });
       
       data.push(entry);
@@ -74,17 +89,30 @@ export const transformDataForChart = (
       
       selectedPartners.forEach(partnerData => {
         const planCode = partnerData.planName.toLowerCase();
-        let multiplier = 1;
+        const isTravco = partnerData.partnerName.toLowerCase().includes('travco');
         
-        for (const [planKey, planValue] of Object.entries(planMultipliers)) {
+        // Déterminer la règle à appliquer
+        let rule = { source: "ota_rate", multiplier: 1, offset: 0 };
+        
+        // Chercher la règle spécifique pour ce plan
+        for (const [planKey, planRule] of Object.entries(planRules)) {
           if (planCode.includes(planKey)) {
-            multiplier = planValue;
+            rule = planRule;
             break;
           }
         }
         
+        // Si c'est TRAVCO mais qu'on n'a pas trouvé de règle spécifique
+        if (isTravco && rule.source !== "travco_rate") {
+          rule = planRules["travco-bb-flex-net"];
+        }
+        
+        // Pour les estimations, on applique un taux légèrement différent pour TRAVCO
+        const estimatedBaseRate = isTravco ? baseRate * 0.9 : baseRate;
+        const calculatedRate = (estimatedBaseRate * rule.multiplier) + rule.offset;
+        
         const displayName = `${partnerData.partnerName} - ${partnerData.planName}`;
-        entry[displayName] = Math.round(baseRate * multiplier);
+        entry[displayName] = Math.round(calculatedRate);
       });
       
       data.push(entry);
@@ -106,7 +134,7 @@ export const calculateDifferences = (
 
   const firstPartner = `${selectedPartners[0].partnerName} - ${selectedPartners[0].planName}`;
   
-  const differences = selectedPartners.slice(1).map(partner => {
+  const differences: DifferenceData[] = selectedPartners.slice(1).map(partner => {
     const currentPartner = `${partner.partnerName} - ${partner.planName}`;
     
     // Calculate average difference
@@ -127,7 +155,7 @@ export const calculateDifferences = (
       plan: currentPartner,
       baselinePlan: firstPartner,
       averageDifference: Math.abs(Math.round(avgDiff)),
-      percentDifference: Math.abs(percentDiff.toFixed(1)),
+      percentDifference: Math.abs(percentDiff.toFixed(1)), // Convertir en string
       isAbove: isPositive,
     };
   });
