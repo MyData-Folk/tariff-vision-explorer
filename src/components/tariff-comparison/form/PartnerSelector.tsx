@@ -60,7 +60,7 @@ export function PartnerSelector({
       const plans = partnerPlans[newPartners[index].partnerId] || [];
       const plan = plans.find(p => p.id === value);
       if (plan) {
-        newPartners[index].planName = plan.code;
+        newPartners[index].planName = plan.code; // Utiliser code au lieu de description
       }
     }
     
