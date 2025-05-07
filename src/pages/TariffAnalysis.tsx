@@ -49,7 +49,14 @@ const TariffAnalysis = () => {
           .select('*');
           
         if (partnerPlansError) throw partnerPlansError;
-        setPartnerPlans(partnerPlansData || []);
+        
+        // Transform the data to match our PartnerPlan interface
+        const transformedPartnerPlans = (partnerPlansData || []).map(pp => ({
+          partnerId: pp.partner_id,
+          planId: pp.plan_id
+        }));
+        
+        setPartnerPlans(transformedPartnerPlans);
 
         // Charger les règles de catégorie
         const { data: rulesData, error: rulesError } = await supabase
