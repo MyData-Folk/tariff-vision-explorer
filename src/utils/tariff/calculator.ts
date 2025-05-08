@@ -39,27 +39,32 @@ export const calculateTariff = (
   const dateStr = format(params.date, "yyyy-MM-dd");
   const dailyRate = dailyRates.get(dateStr);
   
-  // Obtenir le tarif de base
+  // 1. Déterminer le tarif de base selon la source
+  const planRule = planRules.find(rule => rule.plan_id === params.planId);
+  const baseSource = planRule?.base_source || "ota_rate"; // Default to OTA if no rule found
+  
+  // 2. Obtenir le tarif de base absolu journalier
   let baseRate: number;
   if (params.baseRate) {
+    // Si un tarif de base est fourni, l'utiliser
     baseRate = params.baseRate;
   } else if (dailyRate) {
-    baseRate = dailyRate.ota_rate;
+    // Sinon, utiliser le tarif de base de la date correspondante
+    baseRate = baseSource === "travco_rate" ? dailyRate.travco_rate : dailyRate.ota_rate;
   } else {
     // Si pas de tarif disponible, estimer selon jour de semaine
     const isWeekend = [0, 6].includes(params.date.getDay());
     baseRate = isWeekend ? 140 : 120;
   }
   
-  // Trouver la règle de catégorie
+  // 3. Appliquer la règle de catégorie
   const categoryRule = categoryRules.find(rule => rule.category_id === params.categoryId);
   const afterCategoryRule = categoryRule ? applyCategoryRules(baseRate, categoryRule) : baseRate;
   
-  // Trouver la règle de plan
-  const planRule = planRules.find(rule => rule.plan_id === params.planId);
+  // 4. Appliquer la règle de plan (séquence d'étapes)
   const afterPlanRule = planRule ? applyPlanRules(afterCategoryRule, planRule) : afterCategoryRule;
   
-  // Appliquer les ajustements partenaire sélectionnés
+  // 7. Appliquer les ajustements partenaire
   let afterPartnerAdjustments = afterPlanRule;
   const applicableAdjustments = partnerAdjustments.filter(
     adj => adj.partner_id === params.partnerId && 
@@ -70,12 +75,15 @@ export const calculateTariff = (
     afterPartnerAdjustments = applyPartnerAdjustment(afterPartnerAdjustments, adjustment);
   });
   
-  // Appliquer la remise
+  // 8. Appliquer la remise globale (%)
   const discount = params.discount || 0;
   const discountAmount = afterPartnerAdjustments * (discount / 100);
   const afterDiscount = afterPartnerAdjustments - discountAmount;
   
-  // Construire les étapes de calcul pour affichage
+  // Arrondir le tarif final
+  const finalRate = Math.round(afterDiscount * 100) / 100;
+  
+  // Construire les étapes de calcul pour l'affichage
   const steps = [
     { description: "Tarif de base", value: baseRate },
     { description: "Après règle de catégorie", value: afterCategoryRule },
@@ -102,7 +110,7 @@ export const calculateTariff = (
     afterPlanRule,
     afterPartnerAdjustments,
     afterDiscount,
-    finalRate: afterDiscount,
+    finalRate,
     steps
   };
 };

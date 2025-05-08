@@ -111,6 +111,8 @@ export const applyCategoryRules = (baseRate: number, categoryRule: CategoryRule)
       return baseRate * categoryRule.formula_multiplier + categoryRule.formula_offset;
     case 'additive':
       return baseRate + categoryRule.formula_offset;
+    case 'fixed':
+      return categoryRule.formula_offset; // Utiliser une valeur fixe indépendamment de la base
     default:
       return baseRate * categoryRule.formula_multiplier + categoryRule.formula_offset;
   }
@@ -151,6 +153,9 @@ export const applyPlanRules = (baseRate: number, planRule: PlanRule): number => 
           calculatedRate /= value;
         }
         break;
+      case 'percentage':
+        calculatedRate = calculatedRate * (1 + value / 100);
+        break;
     }
   });
   
@@ -162,6 +167,7 @@ export const applyPartnerAdjustment = (baseRate: number, adjustment: PartnerAdju
   if (!adjustment) return baseRate;
   
   const value = parseFloat(adjustment.adjustment_value);
+  if (isNaN(value)) return baseRate;
   
   switch (adjustment.adjustment_type) {
     case 'percentage':
@@ -169,7 +175,11 @@ export const applyPartnerAdjustment = (baseRate: number, adjustment: PartnerAdju
     case 'fixed':
       return baseRate + value;
     case 'commission':
-      return baseRate * (1 - value / 100);
+      return baseRate * (1 - value / 100); // Interpréter comme une remise sur le tarif
+    case 'promo_filter':
+      // Pour les filtres conditionnels, il faudrait une logique plus complexe
+      // Ici on suppose qu'un filtrage a déjà été fait et on retourne simplement le tarif
+      return baseRate;
     default:
       return baseRate;
   }
