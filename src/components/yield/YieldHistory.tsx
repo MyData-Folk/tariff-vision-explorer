@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { 
   Table, 
@@ -15,13 +15,14 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { parseISODate } from "@/lib/utils";
 import { CompetitorPrice, OccupancyRate, OptimizedPrice } from "@/services";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 interface YieldHistoryTableProps {
   occupancyRates: OccupancyRate[];
   competitorPrices: CompetitorPrice[];
   optimizedPrices: OptimizedPrice[];
   isLoading: boolean;
+  onRefresh?: () => void;
 }
 
 interface HistoryData {
@@ -37,7 +38,8 @@ const YieldHistory: React.FC<YieldHistoryTableProps> = ({
   occupancyRates, 
   competitorPrices, 
   optimizedPrices,
-  isLoading 
+  isLoading,
+  onRefresh
 }) => {
   // Fusionner les données des trois tableaux
   const historyData: HistoryData[] = React.useMemo(() => {
@@ -117,8 +119,11 @@ const YieldHistory: React.FC<YieldHistoryTableProps> = ({
         <CardHeader>
           <CardTitle>Historique des prix</CardTitle>
         </CardHeader>
-        <CardContent>
-          <p>Chargement en cours...</p>
+        <CardContent className="flex items-center justify-center py-8">
+          <p className="text-muted-foreground flex items-center">
+            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            Chargement des données en cours...
+          </p>
         </CardContent>
       </Card>
     );
@@ -131,14 +136,26 @@ const YieldHistory: React.FC<YieldHistoryTableProps> = ({
           <CardTitle>Historique des prix</CardTitle>
           <CardDescription>Historique des calculs de prix optimisés</CardDescription>
         </div>
-        <Button 
-          onClick={handleExportCSV} 
-          disabled={historyData.length === 0}
-          variant="outline"
-          size="sm"
-        >
-          Exporter CSV
-        </Button>
+        <div className="flex space-x-2">
+          {onRefresh && (
+            <Button 
+              onClick={onRefresh} 
+              size="sm"
+              variant="outline"
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Actualiser
+            </Button>
+          )}
+          <Button 
+            onClick={handleExportCSV} 
+            disabled={historyData.length === 0}
+            variant="outline"
+            size="sm"
+          >
+            Exporter CSV
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {historyData.length === 0 ? (

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   fetchOccupancyRates,
   fetchCompetitorPrices,
@@ -17,6 +17,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDateToISO } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
 
 const YieldManagement = () => {
   // État pour la plage de dates
@@ -31,43 +32,13 @@ const YieldManagement = () => {
   const [optimizedPrices, setOptimizedPrices] = useState<OptimizedPrice[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("calculator");
+  const { toast } = useToast();
 
   // Charger les données depuis Supabase
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!dateRange || !dateRange.from || !dateRange.to) return;
-
-      setIsLoading(true);
-      try {
-        // Convertir les dates en format ISO (YYYY-MM-DD)
-        const startDate = formatDateToISO(dateRange.from);
-        const endDate = formatDateToISO(dateRange.to);
-
-        // Récupérer les données en parallèle
-        const [occupancyData, competitorData, optimizedData] = await Promise.all([
-          fetchOccupancyRates(startDate, endDate),
-          fetchCompetitorPrices(startDate, endDate),
-          fetchOptimizedPrices(startDate, endDate)
-        ]);
-
-        setOccupancyRates(occupancyData);
-        setCompetitorPrices(competitorData);
-        setOptimizedPrices(optimizedData);
-      } catch (error) {
-        console.error("Erreur lors de la récupération des données:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [dateRange]);
-
-  // Écouter les changements dans les données pour rafraîchir automatiquement
-  // Cela est déclenché après chaque calcul de prix optimal
-  const refreshData = async () => {
+  const fetchData = useCallback(async () => {
     if (!dateRange || !dateRange.from || !dateRange.to) return;
 
+    setIsLoading(true);
     try {
       // Convertir les dates en format ISO (YYYY-MM-DD)
       const startDate = formatDateToISO(dateRange.from);
@@ -83,19 +54,51 @@ const YieldManagement = () => {
       setOccupancyRates(occupancyData);
       setCompetitorPrices(competitorData);
       setOptimizedPrices(optimizedData);
+      
+      toast({
+        title: "Données chargées",
+        description: `${optimizedData.length} entrées de prix ont été chargées`
+      });
     } catch (error) {
-      console.error("Erreur lors du rafraîchissement des données:", error);
+      console.error("Erreur lors de la récupération des données:", error);
+      toast({
+        title: "Erreur de chargement",
+        description: "Impossible de récupérer les données de prix",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
+  }, [dateRange, toast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Fonction pour rafraîchir manuellement les données
+  const handleRefreshData = () => {
+    fetchData();
   };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-3xl font-bold">Yield Management</h1>
-        <DateRangePicker 
-          date={dateRange}
-          onDateChange={setDateRange}
-        />
+        <div className="flex flex-col md:flex-row gap-3 items-end">
+          <DateRangePicker 
+            date={dateRange}
+            onDateChange={setDateRange}
+          />
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={handleRefreshData} 
+            disabled={isLoading}
+            className="md:ml-2"
+          >
+            <RefreshIcon className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -137,11 +140,31 @@ const YieldManagement = () => {
             competitorPrices={competitorPrices}
             optimizedPrices={optimizedPrices}
             isLoading={isLoading}
+            onRefresh={handleRefreshData}
           />
         </TabsContent>
       </Tabs>
     </div>
   );
 };
+
+// Composant icône de rafraîchissement
+const RefreshIcon = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width="24" 
+    height="24" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <path d="M3 3v5h5" />
+  </svg>
+);
 
 export default YieldManagement;

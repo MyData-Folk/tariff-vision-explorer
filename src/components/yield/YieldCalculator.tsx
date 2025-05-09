@@ -2,11 +2,10 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { saveYieldData } from "@/services/yieldService";
 
 const YieldCalculator = () => {
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -14,9 +13,10 @@ const YieldCalculator = () => {
   const [competitorPrice, setCompetitorPrice] = useState<number>(150);
   const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { toast } = useToast();
 
   // Fonction pour calculer le prix optimal
-  const calculateOptimalPrice = () => {
+  const calculateOptimalPrice = async () => {
     setIsLoading(true);
 
     // Appliquer la règle de calcul selon le taux d'occupation
@@ -37,32 +37,27 @@ const YieldCalculator = () => {
     setCalculatedPrice(optimalPrice);
 
     // Enregistrer le résultat dans la base de données
-    saveCalculationToDatabase(optimalPrice);
-    setIsLoading(false);
-  };
-
-  // Enregistrer les données du calcul
-  const saveCalculationToDatabase = async (price: number) => {
     try {
-      // Enregistrer le prix calculé
-      await supabase
-        .from('optimized_prices')
-        .upsert({ date, calculated_price: price });
-
-      // Enregistrer le taux d'occupation s'il n'existe pas déjà
-      await supabase
-        .from('occupancy_rates')
-        .upsert({ date, rate: occupancyRate });
-
-      // Enregistrer le prix concurrent s'il n'existe pas déjà
-      await supabase
-        .from('competitor_prices')
-        .upsert({ date, price: competitorPrice });
-
-      toast.success("Calcul enregistré avec succès");
+      await saveYieldData(
+        new Date(date), 
+        occupancyRate, 
+        competitorPrice, 
+        optimalPrice
+      );
+      
+      toast({
+        title: "Calcul enregistré",
+        description: "Le prix optimal a été calculé et enregistré avec succès",
+      });
     } catch (error) {
       console.error("Erreur lors de l'enregistrement:", error);
-      toast.error("Erreur lors de l'enregistrement");
+      toast({
+        title: "Erreur",
+        description: "Un problème est survenu lors de l'enregistrement des données",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
