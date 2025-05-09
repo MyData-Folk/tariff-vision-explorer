@@ -1,6 +1,6 @@
 
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { 
   LayoutDashboard, 
   CalendarDays, 
@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 
 const Sidebar = () => {
+  const location = useLocation();
+  
   const navigation = [
     { name: "Tableau de bord", to: "/", icon: LayoutDashboard },
     { name: "Calcul des tarifs", to: "/calcul", icon: CalendarDays },
@@ -33,9 +35,10 @@ const Sidebar = () => {
             <NavLink
               key={item.name}
               to={item.to}
+              end={item.to === "/"}
               className={({ isActive }) => 
                 `flex items-center px-4 py-3 text-sm font-medium rounded-md 
-                ${isActive 
+                ${isActive || (item.to === "/parametres" && location.pathname === "/parametres")
                   ? 'bg-tariff-blue text-white'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground'
                 }`
