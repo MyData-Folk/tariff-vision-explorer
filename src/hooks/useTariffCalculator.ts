@@ -2,8 +2,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Category, Partner, Plan } from "@/services/types";
-import { format } from "date-fns";
+import { Category, Partner, Plan, DailyRate } from "@/services/types";
+import { format, addDays } from "date-fns";
+import { calculateCategoryRate, calculatePlanRate } from "@/utils/tariff/tariffCalculators";
+import { CategoryRule, PlanRule, getCategoryRules, getPlanRules } from "@/utils/tariff/rules";
 
 export interface CalculationResult {
   nightlyRates: { date: Date; rate: number }[];
@@ -27,6 +29,9 @@ export function useTariffCalculator() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [partnerPlans, setPartnerPlans] = useState<{[key: string]: Plan[]}>({});
+  const [categoryRules, setCategoryRules] = useState<CategoryRule[]>([]);
+  const [planRules, setPlanRules] = useState<PlanRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load data on component mount
@@ -56,13 +61,48 @@ export function useTariffCalculator() {
           
         if (plansError) throw plansError;
         
+        // Load partner-plan associations
+        const { data: partnerPlansData, error: partnerPlansError } = await supabase
+          .from('partner_plans')
+          .select('*');
+        
+        if (partnerPlansError) throw partnerPlansError;
+        
+        // Get category and plan rules
+        const categoryRulesData = await getCategoryRules();
+        const planRulesData = await getPlanRules();
+        
         setCategories(categoriesData || []);
         setPartners(partnersData || []);
         setPlans(plansData || []);
+        setCategoryRules(categoryRulesData);
+        setPlanRules(planRulesData);
+        
+        // Create partner -> plans mapping
+        const planMapping: {[key: string]: Plan[]} = {};
+        
+        (partnersData || []).forEach(partner => {
+          const partnerAssociations = (partnerPlansData || []).filter(
+            assoc => assoc.partner_id === partner.id
+          );
+          
+          const associatedPlans = partnerAssociations
+            .map(assoc => plansData?.find(plan => plan.id === assoc.plan_id))
+            .filter(Boolean) as Plan[];
+          
+          planMapping[partner.id] = associatedPlans.length > 0 ? associatedPlans : [];
+        });
+        
+        setPartnerPlans(planMapping);
         
         // Set default values if available
         if (partnersData && partnersData.length > 0) {
           setSelectedPartner(partnersData[0].id);
+          
+          // Set default plan based on partner
+          if (planMapping[partnersData[0].id]?.length > 0) {
+            setSelectedPlan(planMapping[partnersData[0].id][0].id);
+          }
         }
         
         if (categoriesData && categoriesData.length > 0) {
@@ -80,12 +120,17 @@ export function useTariffCalculator() {
     fetchData();
   }, []);
 
+  // Update selected plan when partner changes
+  useEffect(() => {
+    if (selectedPartner && partnerPlans[selectedPartner]?.length > 0) {
+      setSelectedPlan(partnerPlans[selectedPartner][0].id);
+    } else {
+      setSelectedPlan("");
+    }
+  }, [selectedPartner, partnerPlans]);
+
   // Filter available plans for selected partner
-  const availablePlans = plans.filter(plan => {
-    // Logic to filter plans by partner
-    // To be adapted based on your data structure
-    return true; // For now, show all plans
-  });
+  const availablePlans = selectedPartner ? partnerPlans[selectedPartner] || [] : [];
 
   const handleCalculate = async () => {
     if (!arrivalDate || !selectedPlan || !selectedCategory) {
@@ -97,7 +142,7 @@ export function useTariffCalculator() {
       // First check if there are base rates for the requested dates
       const startDate = format(arrivalDate, 'yyyy-MM-dd');
       const endDate = format(
-        new Date(arrivalDate.getTime() + (nights - 1) * 24 * 60 * 60 * 1000),
+        addDays(arrivalDate, nights - 1),
         'yyyy-MM-dd'
       );
       
@@ -109,9 +154,12 @@ export function useTariffCalculator() {
         .order('date', { ascending: true });
         
       if (baseRatesError) throw baseRatesError;
+
+      // Get the reference category ID and plan ID
+      const referenceCategoryId = "classic-double"; // Remplacer par la valeur de référence correcte
+      const referencePlanId = "ota-ro-flex"; // Remplacer par la valeur de référence correcte
       
       // Generate daily rates
-      const baseRate = getBaseRateForCategory(selectedCategory);
       const nightlyRates = Array.from({ length: nights }).map((_, index) => {
         const date = new Date(arrivalDate);
         date.setDate(date.getDate() + index);
@@ -119,18 +167,48 @@ export function useTariffCalculator() {
         const dateString = format(date, 'yyyy-MM-dd');
         const baseRateForDay = baseRatesData?.find(rate => rate.date === dateString);
         
-        // Weekend rates are higher
-        const isWeekend = [0, 6].includes(date.getDay());
-        const adjustmentFactor = isWeekend ? 1.2 : 1;
-        
-        // Use the base rate from database if available, otherwise use the formula
         let rate;
+        
         if (baseRateForDay) {
-          rate = baseRateForDay.ota_rate; // or another field depending on your structure
+          // Get the plan rule to determine base source
+          const planRule = planRules.find(rule => rule.plan_id === selectedPlan);
+          const baseSource = planRule?.base_source || "ota_rate";
+          
+          // Get base rate according to the source
+          const baseRate = baseSource === "travco_rate" 
+            ? baseRateForDay.travco_rate 
+            : baseRateForDay.ota_rate;
+          
+          // Apply category rule
+          const categoryRule = categoryRules.find(rule => rule.category_id === selectedCategory);
+          const categoryRate = categoryRule 
+            ? calculateCategoryRate(baseRate, selectedCategory, referenceCategoryId, [categoryRule])
+            : baseRate;
+          
+          // Apply plan rule
+          rate = planRule 
+            ? calculatePlanRate(categoryRate, selectedPlan, referencePlanId, [planRule])
+            : categoryRate;
         } else {
-          // Randomness factor to simulate variations if no data available
-          const randomFactor = 0.9 + Math.random() * 0.2;
-          rate = Math.round(baseRate * adjustmentFactor * randomFactor);
+          // Weekend rates are higher if no data available
+          const isWeekend = [0, 6].includes(date.getDay());
+          const baseRate = isWeekend ? 140 : 120;
+          
+          // Apply simple modifiers if rules are available
+          const categoryRule = categoryRules.find(rule => rule.category_id === selectedCategory);
+          const planRule = planRules.find(rule => rule.plan_id === selectedPlan);
+          
+          let modifiedRate = baseRate;
+          
+          if (categoryRule) {
+            modifiedRate = calculateCategoryRate(modifiedRate, selectedCategory, referenceCategoryId, [categoryRule]);
+          }
+          
+          if (planRule) {
+            modifiedRate = calculatePlanRate(modifiedRate, selectedPlan, referencePlanId, [planRule]);
+          }
+          
+          rate = Math.round(modifiedRate);
         }
         
         return {
@@ -154,19 +232,6 @@ export function useTariffCalculator() {
     } catch (error) {
       console.error("Erreur lors du calcul:", error);
       toast.error("Impossible de calculer les tarifs");
-    }
-  };
-  
-  // Function to get base rate by category
-  const getBaseRateForCategory = (categoryId: string): number => {
-    const category = categories.find(c => c.id === categoryId);
-    // Simplified logic - in a real case, you would retrieve this value from the database or a complex calculation
-    switch (category?.name.toLowerCase()) {
-      case 'deluxe': return 145;
-      case 'suite': return 210;
-      case 'standard': return 115;
-      case 'premium': return 175;
-      default: return 120;
     }
   };
 

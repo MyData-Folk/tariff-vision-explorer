@@ -6,3 +6,4 @@ export * from './rules';
 export * from './calculator';
 export * from './chartTransformers';
 export * from './tariffCalculators';
+export * from './partnerPlans';
