@@ -1,6 +1,6 @@
 
 import React from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, 
   CalendarDays, 
@@ -9,9 +9,12 @@ import {
   Settings,
   TrendingUp
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const Sidebar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   
   const navigation = [
     { name: "Tableau de bord", to: "/", icon: LayoutDashboard },
@@ -22,9 +25,20 @@ const Sidebar = () => {
     { name: "Paramètres", to: "/parametres", icon: Settings },
   ];
 
+  const handleLogoClick = () => {
+    navigate("/");
+    toast({
+      title: "Tableau de bord",
+      description: "Navigation vers le tableau de bord"
+    });
+  };
+
   return (
     <div className="hidden md:flex flex-col w-64 bg-sidebar border-r border-border">
-      <div className="flex items-center justify-center h-16 border-b border-border">
+      <div 
+        className="flex items-center justify-center h-16 border-b border-border cursor-pointer hover:bg-sidebar-accent/10 transition-colors"
+        onClick={handleLogoClick}
+      >
         <h1 className="text-xl font-semibold text-tariff-blue">
           Tariff Vision Explorer
         </h1>

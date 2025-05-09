@@ -41,13 +41,26 @@ const Topbar = () => {
     });
   };
 
+  const handleTitleClick = () => {
+    navigate("/");
+    toast({
+      title: "Tableau de bord",
+      description: "Navigation vers le tableau de bord"
+    });
+  };
+
   return (
     <header className="border-b border-border h-16 flex items-center justify-between px-4 md:px-6 bg-background">
       <div className="flex items-center">
         <Button variant="ghost" className="md:hidden mr-2" size="icon">
           <Menu className="h-5 w-5" />
         </Button>
-        <h2 className="text-lg font-semibold">Tariff Vision Explorer</h2>
+        <h2 
+          onClick={handleTitleClick} 
+          className="text-lg font-semibold cursor-pointer hover:text-tariff-blue transition-colors"
+        >
+          Tariff Vision Explorer
+        </h2>
       </div>
       <div className="flex items-center gap-4">
         <DropdownMenu>
