@@ -1,3 +1,4 @@
+
 // Services for yield management operations
 
 import { supabase } from "@/integrations/supabase/client";
@@ -66,46 +67,100 @@ export const calculateOptimizedPrice = (occupancyRate: number, competitorPrice: 
 // Keep the old function name for backwards compatibility
 export const calculateOptimalPrice = calculateOptimizedPrice;
 
-// CRUD operations for yield management data
+// CRUD operations for yield management data - Fixed to handle tables without onConflict constraints
 export const upsertOccupancyRate = async (date: string, rate: number): Promise<void> => {
-  const { error } = await supabase
+  // First check if record exists
+  const { data: existingRecord } = await supabase
     .from('occupancy_rates')
-    .upsert([{ date, rate }], { 
-      onConflict: 'date',
-      ignoreDuplicates: false
-    });
-  
-  if (error) {
-    console.error('Error upserting occupancy rate:', error);
-    throw error;
+    .select('*')
+    .eq('date', date)
+    .maybeSingle();
+    
+  if (existingRecord) {
+    // Update existing record
+    const { error } = await supabase
+      .from('occupancy_rates')
+      .update({ rate })
+      .eq('date', date);
+      
+    if (error) {
+      console.error('Error updating occupancy rate:', error);
+      throw error;
+    }
+  } else {
+    // Insert new record
+    const { error } = await supabase
+      .from('occupancy_rates')
+      .insert([{ date, rate }]);
+      
+    if (error) {
+      console.error('Error inserting occupancy rate:', error);
+      throw error;
+    }
   }
 };
 
 export const upsertCompetitorPrice = async (date: string, price: number): Promise<void> => {
-  const { error } = await supabase
+  // First check if record exists
+  const { data: existingRecord } = await supabase
     .from('competitor_prices')
-    .upsert([{ date, price }], {
-      onConflict: 'date',
-      ignoreDuplicates: false
-    });
-  
-  if (error) {
-    console.error('Error upserting competitor price:', error);
-    throw error;
+    .select('*')
+    .eq('date', date)
+    .maybeSingle();
+    
+  if (existingRecord) {
+    // Update existing record
+    const { error } = await supabase
+      .from('competitor_prices')
+      .update({ price })
+      .eq('date', date);
+      
+    if (error) {
+      console.error('Error updating competitor price:', error);
+      throw error;
+    }
+  } else {
+    // Insert new record
+    const { error } = await supabase
+      .from('competitor_prices')
+      .insert([{ date, price }]);
+      
+    if (error) {
+      console.error('Error inserting competitor price:', error);
+      throw error;
+    }
   }
 };
 
 export const upsertOptimizedPrice = async (date: string, calculated_price: number): Promise<void> => {
-  const { error } = await supabase
+  // First check if record exists
+  const { data: existingRecord } = await supabase
     .from('optimized_prices')
-    .upsert([{ date, calculated_price }], {
-      onConflict: 'date',
-      ignoreDuplicates: false
-    });
-  
-  if (error) {
-    console.error('Error upserting optimized price:', error);
-    throw error;
+    .select('*')
+    .eq('date', date)
+    .maybeSingle();
+    
+  if (existingRecord) {
+    // Update existing record
+    const { error } = await supabase
+      .from('optimized_prices')
+      .update({ calculated_price })
+      .eq('date', date);
+      
+    if (error) {
+      console.error('Error updating optimized price:', error);
+      throw error;
+    }
+  } else {
+    // Insert new record
+    const { error } = await supabase
+      .from('optimized_prices')
+      .insert([{ date, calculated_price }]);
+      
+    if (error) {
+      console.error('Error inserting optimized price:', error);
+      throw error;
+    }
   }
 };
 
@@ -117,7 +172,6 @@ export const saveYieldData = async (
 ): Promise<void> => {
   const formattedDate = format(date, 'yyyy-MM-dd');
   
-  // Utilisation d'une transaction pour s'assurer que tout est enregistré ou rien
   try {
     // 1. Enregistrer le taux d'occupation
     await upsertOccupancyRate(formattedDate, occupancyRate);

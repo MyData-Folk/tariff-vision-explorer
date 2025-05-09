@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { saveYieldData } from "@/services/yieldService";
+import { saveYieldData, calculateOptimizedPrice } from "@/services/yieldService";
 
 const YieldCalculator = () => {
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -20,20 +20,7 @@ const YieldCalculator = () => {
     setIsLoading(true);
 
     // Appliquer la règle de calcul selon le taux d'occupation
-    let optimalPrice: number;
-    if (occupancyRate >= 80) {
-      // Demande forte: -5% du prix concurrent
-      optimalPrice = competitorPrice * 0.95;
-    } else if (occupancyRate >= 60) {
-      // Demande moyenne: -15% du prix concurrent
-      optimalPrice = competitorPrice * 0.85;
-    } else {
-      // Demande faible: -30% du prix concurrent
-      optimalPrice = competitorPrice * 0.70;
-    }
-
-    // Arrondir le prix
-    optimalPrice = Math.round(optimalPrice);
+    const optimalPrice = calculateOptimizedPrice(occupancyRate, competitorPrice);
     setCalculatedPrice(optimalPrice);
 
     // Enregistrer le résultat dans la base de données
