@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -96,7 +95,9 @@ const SettingsPage = () => {
       dbHost: "db.supabase.co",
       dbName: "tarif_vision_db",
       dbUser: "tariff_admin",
-      sslConnection: true
+      sslConnection: true,
+      twoFactor: false,
+      sessionTimeout: true
     },
     tariffs: {
       defaultPartner: "1",
@@ -201,7 +202,9 @@ const SettingsPage = () => {
           dbHost: "db.supabase.co",
           dbName: "tarif_vision_db",
           dbUser: "tariff_admin",
-          sslConnection: true
+          sslConnection: true,
+          twoFactor: false,
+          sessionTimeout: true
         },
         tariffs: {
           defaultPartner: "1",
