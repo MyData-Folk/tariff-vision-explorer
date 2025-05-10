@@ -1,19 +1,84 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { saveYieldData, calculateOptimizedPrice } from "@/services/yieldService";
+import { 
+  saveYieldData, 
+  calculateOptimizedPrice, 
+  fetchPartners, 
+  fetchPlansForPartner 
+} from "@/services/yieldService";
+import { Partner, Plan } from "@/services/types";
 
 const YieldCalculator = () => {
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [occupancyRate, setOccupancyRate] = useState<number>(75);
-  const [competitorPrice, setCompetitorPrice] = useState<number>(150);
   const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { toast } = useToast();
+
+  // Add partner and plan selection
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>("");
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [competitorPrice, setCompetitorPrice] = useState<number>(150);
+
+  // Fetch partners on component mount
+  useEffect(() => {
+    const loadPartners = async () => {
+      try {
+        const partnersData = await fetchPartners();
+        setPartners(partnersData);
+
+        // Select first partner by default if available
+        if (partnersData.length > 0) {
+          setSelectedPartnerId(partnersData[0].id);
+        }
+      } catch (error) {
+        console.error("Error loading partners:", error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger les partenaires",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadPartners();
+  }, [toast]);
+
+  // Fetch plans when partner selection changes
+  useEffect(() => {
+    const loadPlans = async () => {
+      if (selectedPartnerId) {
+        try {
+          const plansData = await fetchPlansForPartner(selectedPartnerId);
+          setPlans(plansData);
+
+          // Clear current plan selection and select first plan by default if available
+          if (plansData.length > 0) {
+            setSelectedPlanId(plansData[0].id);
+          } else {
+            setSelectedPlanId("");
+          }
+        } catch (error) {
+          console.error("Error loading plans:", error);
+          setPlans([]);
+          setSelectedPlanId("");
+        }
+      } else {
+        setPlans([]);
+        setSelectedPlanId("");
+      }
+    };
+
+    loadPlans();
+  }, [selectedPartnerId]);
 
   // Fonction pour calculer le prix optimal
   const calculateOptimalPrice = async () => {
@@ -65,6 +130,45 @@ const YieldCalculator = () => {
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="partner">Partenaire</Label>
+          <Select
+            value={selectedPartnerId}
+            onValueChange={setSelectedPartnerId}
+          >
+            <SelectTrigger id="partner">
+              <SelectValue placeholder="Sélectionner un partenaire" />
+            </SelectTrigger>
+            <SelectContent>
+              {partners.map((partner) => (
+                <SelectItem key={partner.id} value={partner.id}>
+                  {partner.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="plan">Plan tarifaire</Label>
+          <Select
+            value={selectedPlanId}
+            onValueChange={setSelectedPlanId}
+            disabled={!selectedPartnerId || plans.length === 0}
+          >
+            <SelectTrigger id="plan">
+              <SelectValue placeholder="Sélectionner un plan" />
+            </SelectTrigger>
+            <SelectContent>
+              {plans.map((plan) => (
+                <SelectItem key={plan.id} value={plan.id}>
+                  {plan.code}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="occupancy">Taux d'occupation (%)</Label>
           <Input
             id="occupancy"
@@ -95,7 +199,7 @@ const YieldCalculator = () => {
         )}
       </CardContent>
       <CardFooter>
-        <Button onClick={calculateOptimalPrice} disabled={isLoading} className="w-full">
+        <Button onClick={calculateOptimalPrice} disabled={isLoading || !selectedPartnerId || !selectedPlanId} className="w-full">
           {isLoading ? "Calcul en cours..." : "Calculer le prix optimal"}
         </Button>
       </CardFooter>

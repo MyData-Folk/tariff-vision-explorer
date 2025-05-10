@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
@@ -60,7 +60,7 @@ export function PartnerSelector({
       const plans = partnerPlans[newPartners[index].partnerId] || [];
       const plan = plans.find(p => p.id === value);
       if (plan) {
-        newPartners[index].planName = plan.code; // Utiliser code au lieu de description
+        newPartners[index].planName = plan.code;
       }
     }
     
@@ -72,6 +72,27 @@ export function PartnerSelector({
     if (!partnerId) return [];
     return partnerPlans[partnerId] || [];
   };
+
+  // When a partner is selected and has plans, automatically select the first plan if none is selected
+  useEffect(() => {
+    const newPartners = [...selectedPartners];
+    let hasChanged = false;
+    
+    newPartners.forEach((partner, index) => {
+      if (partner.partnerId && !partner.planId) {
+        const availablePlans = getPlansForPartner(partner.partnerId);
+        if (availablePlans.length > 0) {
+          partner.planId = availablePlans[0].id;
+          partner.planName = availablePlans[0].code;
+          hasChanged = true;
+        }
+      }
+    });
+    
+    if (hasChanged) {
+      setSelectedPartners(newPartners);
+    }
+  }, [selectedPartners, partnerPlans]);
 
   return (
     <div className="space-y-4">

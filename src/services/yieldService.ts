@@ -1,14 +1,16 @@
-
 // Services for yield management operations
 
 import { supabase } from "@/integrations/supabase/client";
-import { OccupancyRate, CompetitorPrice, OptimizedPrice } from "./types";
+import { OccupancyRate, CompetitorPrice, OptimizedPrice, Partner, Plan } from "./types";
 import { format } from "date-fns";
 
 // Data structures for optimized lookups
 let occupancyRatesMap = new Map<string, OccupancyRate>();
 let competitorPricesMap = new Map<string, CompetitorPrice>();
 let optimizedPricesMap = new Map<string, OptimizedPrice>();
+let plansMap = new Map<string, Plan>();
+let partnersMap = new Map<string, Partner>();
+let partnerPlansMap = new Map<string, Plan[]>();
 
 // Function to initialize data maps
 export const initializeMaps = async (startDate: string, endDate: string) => {
@@ -17,11 +19,16 @@ export const initializeMaps = async (startDate: string, endDate: string) => {
     const occupancyRates = await fetchOccupancyRates(startDate, endDate);
     const competitorPrices = await fetchCompetitorPrices(startDate, endDate);
     const optimizedPrices = await fetchOptimizedPrices(startDate, endDate);
+    const plans = await fetchAllPlans();
+    const partners = await fetchPartners();
     
     // Populate maps
     occupancyRatesMap.clear();
     competitorPricesMap.clear();
     optimizedPricesMap.clear();
+    plansMap.clear();
+    partnersMap.clear();
+    partnerPlansMap.clear();
     
     occupancyRates.forEach(rate => {
       occupancyRatesMap.set(rate.date, rate);
@@ -35,9 +42,55 @@ export const initializeMaps = async (startDate: string, endDate: string) => {
       optimizedPricesMap.set(price.date, price);
     });
     
+    plans.forEach(plan => {
+      plansMap.set(plan.id, plan);
+    });
+    
+    partners.forEach(partner => {
+      partnersMap.set(partner.id, partner);
+    });
+    
+    // Initialize partner-plans associations
+    await loadPartnerPlansAssociations();
+    
     console.log("Data maps initialized successfully");
   } catch (error) {
     console.error("Error initializing data maps:", error);
+    throw error;
+  }
+};
+
+// Function to load partner-plans associations
+export const loadPartnerPlansAssociations = async () => {
+  try {
+    const { data: associations, error } = await supabase
+      .from('partner_plans')
+      .select('*');
+    
+    if (error) throw error;
+    
+    // Group plans by partner ID
+    (associations || []).forEach(association => {
+      const partnerId = association.partner_id;
+      const planId = association.plan_id;
+      
+      const plan = plansMap.get(planId);
+      if (!plan) return; // Skip if plan not found
+      
+      // Get or create the plans array for this partner
+      if (!partnerPlansMap.has(partnerId)) {
+        partnerPlansMap.set(partnerId, []);
+      }
+      
+      const partnerPlans = partnerPlansMap.get(partnerId);
+      if (partnerPlans) {
+        partnerPlans.push(plan);
+      }
+    });
+    
+    console.log("Partner-plans associations loaded successfully");
+  } catch (error) {
+    console.error("Error loading partner-plans associations:", error);
     throw error;
   }
 };
@@ -88,6 +141,73 @@ export const fetchOptimizedPrices = async (startDate: string, endDate: string): 
   }
   
   return data || [];
+};
+
+// Function to fetch all partners
+export const fetchPartners = async (): Promise<Partner[]> => {
+  const { data, error } = await supabase
+    .from('partners')
+    .select('*')
+    .order('name');
+  
+  if (error) {
+    console.error('Error fetching partners:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+// Function to fetch all plans
+export const fetchAllPlans = async (): Promise<Plan[]> => {
+  const { data, error } = await supabase
+    .from('plans')
+    .select('*')
+    .order('code');
+  
+  if (error) {
+    console.error('Error fetching plans:', error);
+    throw error;
+  }
+  
+  return data || [];
+};
+
+// Function to fetch plans for a specific partner
+export const fetchPlansForPartner = async (partnerId: string): Promise<Plan[]> => {
+  try {
+    // If maps are initialized, use them for faster lookup
+    if (partnerPlansMap.size > 0 && partnerPlansMap.has(partnerId)) {
+      return partnerPlansMap.get(partnerId) || [];
+    }
+    
+    // Otherwise, fetch from database
+    const { data, error } = await supabase
+      .from('partner_plans')
+      .select('plan_id')
+      .eq('partner_id', partnerId);
+    
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      return [];
+    }
+    
+    const planIds = data.map(item => item.plan_id);
+    
+    const { data: plansData, error: plansError } = await supabase
+      .from('plans')
+      .select('*')
+      .in('id', planIds)
+      .order('code');
+    
+    if (plansError) throw plansError;
+    
+    return plansData || [];
+  } catch (error) {
+    console.error('Error fetching plans for partner:', error);
+    throw error;
+  }
 };
 
 // Price calculation logic
