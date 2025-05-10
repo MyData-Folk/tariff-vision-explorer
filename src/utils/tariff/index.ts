@@ -7,7 +7,5 @@ export * from './calculator';
 export * from './chartTransformers';
 export * from './tariffCalculators';
 // Export partnerPlans functions individually to avoid name conflicts with rules.ts
-export { 
-  createPartnerPlansMapping, 
-  getPlansForPartner 
-} from './partnerPlans';
+import { createPartnerPlansMapping, getPlansForPartner } from './partnerPlans';
+export { createPartnerPlansMapping, getPlansForPartner };
