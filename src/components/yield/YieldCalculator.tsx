@@ -19,12 +19,12 @@ const YieldCalculator = () => {
   const calculateOptimalPrice = async () => {
     setIsLoading(true);
 
-    // Appliquer la règle de calcul selon le taux d'occupation
-    const optimalPrice = calculateOptimizedPrice(occupancyRate, competitorPrice);
-    setCalculatedPrice(optimalPrice);
-
-    // Enregistrer le résultat dans la base de données
     try {
+      // Appliquer la règle de calcul selon le taux d'occupation
+      const optimalPrice = calculateOptimizedPrice(occupancyRate, competitorPrice);
+      setCalculatedPrice(optimalPrice);
+
+      // Enregistrer le résultat dans la base de données
       await saveYieldData(
         new Date(date), 
         occupancyRate, 

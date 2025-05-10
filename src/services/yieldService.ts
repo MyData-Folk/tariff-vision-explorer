@@ -5,6 +5,43 @@ import { supabase } from "@/integrations/supabase/client";
 import { OccupancyRate, CompetitorPrice, OptimizedPrice } from "./types";
 import { format } from "date-fns";
 
+// Data structures for optimized lookups
+let occupancyRatesMap = new Map<string, OccupancyRate>();
+let competitorPricesMap = new Map<string, CompetitorPrice>();
+let optimizedPricesMap = new Map<string, OptimizedPrice>();
+
+// Function to initialize data maps
+export const initializeMaps = async (startDate: string, endDate: string) => {
+  try {
+    // Fetch all required data
+    const occupancyRates = await fetchOccupancyRates(startDate, endDate);
+    const competitorPrices = await fetchCompetitorPrices(startDate, endDate);
+    const optimizedPrices = await fetchOptimizedPrices(startDate, endDate);
+    
+    // Populate maps
+    occupancyRatesMap.clear();
+    competitorPricesMap.clear();
+    optimizedPricesMap.clear();
+    
+    occupancyRates.forEach(rate => {
+      occupancyRatesMap.set(rate.date, rate);
+    });
+    
+    competitorPrices.forEach(price => {
+      competitorPricesMap.set(price.date, price);
+    });
+    
+    optimizedPrices.forEach(price => {
+      optimizedPricesMap.set(price.date, price);
+    });
+    
+    console.log("Data maps initialized successfully");
+  } catch (error) {
+    console.error("Error initializing data maps:", error);
+    throw error;
+  }
+};
+
 export const fetchOccupancyRates = async (startDate: string, endDate: string): Promise<OccupancyRate[]> => {
   const { data, error } = await supabase
     .from('occupancy_rates')
@@ -67,7 +104,7 @@ export const calculateOptimizedPrice = (occupancyRate: number, competitorPrice: 
 // Keep the old function name for backwards compatibility
 export const calculateOptimalPrice = calculateOptimizedPrice;
 
-// CRUD operations for yield management data - Fixed to handle tables without onConflict constraints
+// CRUD operations for yield management data
 export const upsertOccupancyRate = async (date: string, rate: number): Promise<void> => {
   // First check if record exists
   const { data: existingRecord } = await supabase
@@ -97,6 +134,20 @@ export const upsertOccupancyRate = async (date: string, rate: number): Promise<v
       console.error('Error inserting occupancy rate:', error);
       throw error;
     }
+  }
+  
+  // Update the map
+  if (occupancyRatesMap.has(date)) {
+    const record = occupancyRatesMap.get(date);
+    if (record) {
+      record.rate = rate;
+    }
+  } else {
+    occupancyRatesMap.set(date, { 
+      id: '',  // Will be updated when we fetch the data next time
+      date, 
+      rate 
+    });
   }
 };
 
@@ -130,6 +181,20 @@ export const upsertCompetitorPrice = async (date: string, price: number): Promis
       throw error;
     }
   }
+  
+  // Update the map
+  if (competitorPricesMap.has(date)) {
+    const record = competitorPricesMap.get(date);
+    if (record) {
+      record.price = price;
+    }
+  } else {
+    competitorPricesMap.set(date, { 
+      id: '',  // Will be updated when we fetch the data next time
+      date, 
+      price 
+    });
+  }
 };
 
 export const upsertOptimizedPrice = async (date: string, calculated_price: number): Promise<void> => {
@@ -162,6 +227,20 @@ export const upsertOptimizedPrice = async (date: string, calculated_price: numbe
       throw error;
     }
   }
+  
+  // Update the map
+  if (optimizedPricesMap.has(date)) {
+    const record = optimizedPricesMap.get(date);
+    if (record) {
+      record.calculated_price = calculated_price;
+    }
+  } else {
+    optimizedPricesMap.set(date, { 
+      id: '',  // Will be updated when we fetch the data next time
+      date, 
+      calculated_price 
+    });
+  }
 };
 
 export const saveYieldData = async (
@@ -173,6 +252,11 @@ export const saveYieldData = async (
   const formattedDate = format(date, 'yyyy-MM-dd');
   
   try {
+    // Initialize maps if not already done
+    if (occupancyRatesMap.size === 0) {
+      await initializeMaps(formattedDate, formattedDate);
+    }
+    
     // 1. Enregistrer le taux d'occupation
     await upsertOccupancyRate(formattedDate, occupancyRate);
     
