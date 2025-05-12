@@ -1,10 +1,11 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Search, Filter, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Partner, Plan } from "@/services/types";
 import { SelectedPartner } from "../types";
+import { Input } from "@/components/ui/input";
 
 interface PartnerSelectorProps {
   selectedPartners: SelectedPartner[];
@@ -19,6 +20,22 @@ export function PartnerSelector({
   allPartners,
   partnerPlans,
 }: PartnerSelectorProps) {
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [filteredPartners, setFilteredPartners] = useState<Partner[]>(allPartners);
+
+  // Filter partners based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredPartners(allPartners);
+      return;
+    }
+    
+    const filtered = allPartners.filter(partner => 
+      partner.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredPartners(filtered);
+  }, [searchTerm, allPartners]);
+
   const addPartner = () => {
     if (selectedPartners.length < 3) {
       setSelectedPartners([...selectedPartners, {
@@ -94,20 +111,49 @@ export function PartnerSelector({
     }
   }, [selectedPartners, partnerPlans]);
 
+  // Function to clear search and reset filters
+  const resetFilters = () => {
+    setSearchTerm("");
+    setFilteredPartners(allPartners);
+    toast.info("Filtres réinitialisés");
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <label className="font-medium">Partenaires et plans</label>
-        {selectedPartners.length < 3 && (
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+        <div className="flex items-center gap-2">
+          <label className="font-medium">Partenaires et plans</label>
           <Button 
-            onClick={addPartner} 
-            variant="outline" 
-            size="sm"
-            className="flex items-center gap-1"
+            onClick={resetFilters}
+            variant="ghost" 
+            size="icon" 
+            className="h-7 w-7"
+            title="Réinitialiser les filtres"
           >
-            <Plus className="h-4 w-4" /> Ajouter un partenaire
+            <RefreshCcw className="h-4 w-4" />
           </Button>
-        )}
+        </div>
+        <div className="flex gap-2 w-full md:w-auto">
+          <div className="relative w-full md:w-auto">
+            <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 h-9 w-full md:w-[180px]"
+            />
+          </div>
+          {selectedPartners.length < 3 && (
+            <Button 
+              onClick={addPartner} 
+              variant="outline" 
+              size="sm"
+              className="flex items-center gap-1 h-9"
+            >
+              <Plus className="h-4 w-4" /> Ajouter
+            </Button>
+          )}
+        </div>
       </div>
       
       {selectedPartners.map((partner, index) => (
@@ -120,7 +166,7 @@ export function PartnerSelector({
               className="w-full rounded-md border border-input bg-background px-3 py-2"
             >
               <option value="">Sélectionner un partenaire</option>
-              {allPartners.map((p) => (
+              {filteredPartners.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>

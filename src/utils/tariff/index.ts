@@ -9,3 +9,8 @@ export * from './tariffCalculators';
 // Export partnerPlans functions individually to avoid name conflicts with rules.ts
 import { createPartnerPlansMapping, getPlansForPartner } from './partnerPlans';
 export { createPartnerPlansMapping, getPlansForPartner };
+import * as PartnerPlansExports from './partnerPlans';
+// Filter out the functions we've already explicitly exported
+const { createPartnerPlansMapping: _, getPlansForPartner: __, ...otherPartnerPlansExports } = PartnerPlansExports;
+// Export the rest
+export { ...otherPartnerPlansExports };

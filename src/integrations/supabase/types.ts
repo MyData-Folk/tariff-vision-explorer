@@ -280,19 +280,19 @@ export type Database = {
         Row: {
           code: string
           created_at: string
-          description: string
+          description: string | null
           id: string
         }
         Insert: {
           code: string
           created_at?: string
-          description: string
+          description?: string | null
           id?: string
         }
         Update: {
           code?: string
           created_at?: string
-          description?: string
+          description?: string | null
           id?: string
         }
         Relationships: []
