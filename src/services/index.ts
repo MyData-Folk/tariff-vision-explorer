@@ -13,16 +13,9 @@ export * from './categoryService';
 import { fetchPlans, fetchPartners } from './partnerService';
 export { fetchPlans, fetchPartners };
 // Re-export everything else from partnerService
-import * as PartnerServiceExports from './partnerService';
-// Filter out the functions we've already explicitly exported
-const { fetchPlans: _, fetchPartners: __, ...otherPartnerExports } = PartnerServiceExports;
-
-// Create individual named exports for the remaining exports
-// For explicitly named exports approach - no dynamic exports
-export const createPartner = otherPartnerExports.createPartner;
-export const updatePartner = otherPartnerExports.updatePartner;
-export const deletePartner = otherPartnerExports.deletePartner;
-// Add any other exports from partnerService that need to be re-exported
+import { createPartner, updatePartner, deletePartner } from './partnerService';
+export { createPartner, updatePartner, deletePartner };
+// If there are any other exports from partnerService, add them here explicitly
 
 export * from './rateService';
 export * from './yieldService';
