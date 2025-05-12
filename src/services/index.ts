@@ -16,11 +16,13 @@ export { fetchPlans, fetchPartners };
 import * as PartnerServiceExports from './partnerService';
 // Filter out the functions we've already explicitly exported
 const { fetchPlans: _, fetchPartners: __, ...otherPartnerExports } = PartnerServiceExports;
-// Export the rest individually (ES module compatible way)
-Object.keys(otherPartnerExports).forEach(key => {
-  // Use dynamic re-export pattern with named exports
-  export { [key]: otherPartnerExports[key] }[key];
-});
+
+// Create individual named exports for the remaining exports
+// For explicitly named exports approach - no dynamic exports
+export const createPartner = otherPartnerExports.createPartner;
+export const updatePartner = otherPartnerExports.updatePartner;
+export const deletePartner = otherPartnerExports.deletePartner;
+// Add any other exports from partnerService that need to be re-exported
 
 export * from './rateService';
 export * from './yieldService';
