@@ -16,10 +16,10 @@ export { fetchPlans, fetchPartners };
 import * as PartnerServiceExports from './partnerService';
 // Filter out the functions we've already explicitly exported
 const { fetchPlans: _, fetchPartners: __, ...otherPartnerExports } = PartnerServiceExports;
-// Export the rest - using individual exports instead of spread syntax
+// Export the rest individually (ES module compatible way)
 Object.keys(otherPartnerExports).forEach(key => {
-  // @ts-ignore - Dynamic exports
-  exports[key] = otherPartnerExports[key];
+  // Use dynamic re-export pattern with named exports
+  export { [key]: otherPartnerExports[key] }[key];
 });
 
 export * from './rateService';

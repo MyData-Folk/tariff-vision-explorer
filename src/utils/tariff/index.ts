@@ -12,8 +12,8 @@ export { createPartnerPlansMapping, getPlansForPartner };
 import * as PartnerPlansExports from './partnerPlans';
 // Filter out the functions we've already explicitly exported
 const { createPartnerPlansMapping: _, getPlansForPartner: __, ...otherPartnerPlansExports } = PartnerPlansExports;
-// Export the rest - using individual exports instead of spread syntax
+// Export the rest individually (ES module compatible way)
 Object.keys(otherPartnerPlansExports).forEach(key => {
-  // @ts-ignore - Dynamic exports
-  exports[key] = otherPartnerPlansExports[key];
+  // Use dynamic re-export pattern with named exports
+  export { [key]: otherPartnerPlansExports[key] }[key];
 });
